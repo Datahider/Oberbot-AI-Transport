@@ -1,0 +1,4 @@
+/vendor/
+/var/
+/deploy.env
+/config/*.local.php
