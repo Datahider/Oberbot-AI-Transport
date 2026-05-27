@@ -75,7 +75,7 @@ ssh $SSH_OPTS "$REMOTE" "
     set -euo pipefail
     cd '$REMOTE_APP_DIR' \
     && '$REMOTE_COMPOSER_BIN' install --no-dev --prefer-dist --no-interaction \
-    && sudo systemctl restart '$REMOTE_SERVICE'
+    && sudo -n systemctl restart $REMOTE_SERVICE
 "
 
 echo "Deploy completed."

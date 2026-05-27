@@ -35,6 +35,13 @@ final class RuntimeLog
 
         $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $line = $encoded !== false ? $encoded : $level . ' ' . $message;
-        fwrite(\STDERR, $line . PHP_EOL);
+        $stderr = fopen('php://stderr', 'wb');
+        if ($stderr !== false) {
+            fwrite($stderr, $line . PHP_EOL);
+            fclose($stderr);
+            return;
+        }
+
+        error_log($line);
     }
 }
