@@ -8,6 +8,9 @@ use RuntimeException;
 
 final class CurlHttpClient implements HttpClientInterface
 {
+    private const CONNECT_TIMEOUT_SECONDS = 10;
+    private const DEFAULT_TIMEOUT_SECONDS = 15;
+
     public function request(string $method, string $url, array $headers, ?string $body = null): array
     {
         $handle = curl_init($url);
@@ -25,6 +28,8 @@ final class CurlHttpClient implements HttpClientInterface
             CURLOPT_HTTPHEADER => $curl_headers,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HEADER => false,
+            CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT_SECONDS,
+            CURLOPT_TIMEOUT => $this->requestTimeoutSeconds($url),
         ]);
 
         if ($body !== null) {
@@ -45,5 +50,19 @@ final class CurlHttpClient implements HttpClientInterface
             'status_code' => $status_code,
             'body' => $raw,
         ];
+    }
+
+    private function requestTimeoutSeconds(string $url): int
+    {
+        $parts = parse_url($url);
+        if (!is_array($parts)) {
+            return self::DEFAULT_TIMEOUT_SECONDS;
+        }
+
+        $query = [];
+        parse_str((string) ($parts['query'] ?? ''), $query);
+        $wait = isset($query['wait']) ? max(0, (int) $query['wait']) : 0;
+
+        return max(self::DEFAULT_TIMEOUT_SECONDS, $wait + 10);
     }
 }
