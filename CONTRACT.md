@@ -21,8 +21,8 @@
 
 ## Runtime Config Contract
 - Канонический entrypoint: `bin/telegram-transport.php`
-- Канонический runtime config path: `config/config.php`
-- `config/config.php` должен возвращать массив с секциями:
+- Канонический runtime config path: `etc/config.php`
+- `etc/config.php` должен возвращать массив с секциями:
   - `router.base_url`
   - `router.transport_token`
   - `telegram.bot_token`

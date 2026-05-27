@@ -8,7 +8,7 @@ use RuntimeException;
 
 final class TelegramTransportConfig
 {
-    public const CONFIG_PATH = __DIR__ . '/../config/config.php';
+    public const CONFIG_PATH = __DIR__ . '/../etc/config.php';
 
     public function __construct(
         public readonly string $router_base_url,
@@ -138,12 +138,12 @@ final class TelegramTransportConfig
         }
 
         if (!is_file($config_path)) {
-            throw new RuntimeException('Missing runtime config: config/config.php');
+            throw new RuntimeException('Missing runtime config: etc/config.php');
         }
 
         $config = require $config_path;
         if (!is_array($config)) {
-            throw new RuntimeException('Runtime config must return array: config/config.php');
+            throw new RuntimeException('Runtime config must return array: etc/config.php');
         }
 
         return $config;
