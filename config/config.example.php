@@ -19,6 +19,7 @@ return [
         'unknown_chat_text' => 'Этот чат не привязан к tenant.',
         'status_instruction_text' => 'Закрепите следующее сообщение для отображения текущего статуса.',
         'idle_status_text' => 'Свободен',
+        'done_forum_topic_icon_custom_emoji_id' => '5312536423851630000',
     ],
     'db' => [
         'host' => '127.0.0.1',

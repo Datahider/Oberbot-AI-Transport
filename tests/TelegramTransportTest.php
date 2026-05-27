@@ -353,6 +353,79 @@ function testNoteCommandStaysLocalAndSilent(): void
     assertSame([], $telegram->sent_messages, 'note no telegram reply');
 }
 
+function testDoneCommandRejectsNonThreadChat(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router,
+        $telegram,
+        new InMemoryTenantMap(['100' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+
+    $result = $transport->handleIncomingUpdate([
+        'update_id' => 24,
+        'message' => [
+            'message_id' => 918,
+            'text' => '/done',
+            'chat' => [
+                'id' => 100,
+                'type' => 'private',
+            ],
+        ],
+    ]);
+
+    assertSame(true, $result['accepted'], 'done diagnostic accepted');
+    assertSame('Команда /done работает только в forum topic.', $result['messages'][0]['text'] ?? null, 'done diagnostic');
+    assertSame([], $router->ingress_payloads, 'done diagnostic not forwarded');
+    assertSame([], $telegram->edited_topics, 'done diagnostic no topic edit');
+    assertSame([], $telegram->closed_topics, 'done diagnostic no topic close');
+}
+
+function testDoneCommandEditsIconAndClosesForumTopic(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router,
+        $telegram,
+        new InMemoryTenantMap(['-100123' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+
+    $result = $transport->handleIncomingUpdate([
+        'update_id' => 25,
+        'message' => [
+            'message_id' => 919,
+            'message_thread_id' => 77,
+            'text' => '/done',
+            'chat' => [
+                'id' => -100123,
+                'type' => 'supergroup',
+            ],
+        ],
+    ]);
+
+    assertSame(true, $result['accepted'], 'done accepted');
+    assertSame('Тема закрыта.', $result['messages'][0]['text'] ?? null, 'done confirmation');
+    assertSame([], $router->ingress_payloads, 'done not forwarded');
+    assertSame([
+        'chat_id' => '-100123',
+        'message_thread_id' => 77,
+        'name' => null,
+        'icon_custom_emoji_id' => '5312536423851630000',
+    ], $telegram->edited_topics[0] ?? null, 'done icon edit');
+    assertSame([
+        'chat_id' => '-100123',
+        'message_thread_id' => 77,
+    ], $telegram->closed_topics[0] ?? null, 'done close topic');
+}
+
     $transport->deliverOutboundEvent(new OutboundEvent(
         event_id: 15,
         opaque: '100',
@@ -454,6 +527,8 @@ function buildConfig(): TelegramTransportConfig
         unknown_chat_text: 'unknown chat',
         status_instruction_text: 'pin this',
         idle_status_text: 'idle'
+        ,
+        done_forum_topic_icon_custom_emoji_id: '5312536423851630000'
     );
 }
 
@@ -514,6 +589,12 @@ class FakeTelegramClient implements TelegramClientInterface
     /** @var list<array<string, mixed>> */
     public array $chat_actions = [];
 
+    /** @var list<array<string, mixed>> */
+    public array $edited_topics = [];
+
+    /** @var list<array<string, mixed>> */
+    public array $closed_topics = [];
+
     /**
      * @return array<string, mixed>
      */
@@ -554,6 +635,24 @@ class FakeTelegramClient implements TelegramClientInterface
         $this->chat_actions[] = [
             'chat_id' => $chat_id,
             'action' => $action,
+            'message_thread_id' => $message_thread_id,
+        ];
+    }
+
+    public function editForumTopic(int|string $chat_id, int $message_thread_id, ?string $name = null, ?string $icon_custom_emoji_id = null): void
+    {
+        $this->edited_topics[] = [
+            'chat_id' => (string) $chat_id,
+            'message_thread_id' => $message_thread_id,
+            'name' => $name,
+            'icon_custom_emoji_id' => $icon_custom_emoji_id,
+        ];
+    }
+
+    public function closeForumTopic(int|string $chat_id, int $message_thread_id): void
+    {
+        $this->closed_topics[] = [
+            'chat_id' => (string) $chat_id,
             'message_thread_id' => $message_thread_id,
         ];
     }
@@ -655,6 +754,8 @@ testStatusEventCreatesInstructionAndStatusMessage();
 testIgnoreCommandSuppressesForumThreadIngressOnly();
 testUnignoreCommandRestoresChatIngress();
 testNoteCommandStaysLocalAndSilent();
+testDoneCommandRejectsNonThreadChat();
+testDoneCommandEditsIconAndClosesForumTopic();
 testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery();
 testOutboundRunnerKeepsCursorWhenDeliveryFails();
 

@@ -34,6 +34,7 @@
   - `transport.unknown_chat_text`
   - `transport.status_instruction_text`
   - `transport.idle_status_text`
+  - `transport.done_forum_topic_icon_custom_emoji_id`
   - `db.host`
   - `db.user`
   - `db.pass`
@@ -92,6 +93,7 @@
   - `/ignore`
   - `/unignore`
   - `/note <text>`
+  - `/done`
 - `/ignore` включает ingress-ignore для текущего Telegram target:
   - если сообщение пришло из forum topic, ignore scope равен точному `opaque` (`<chat_id>:<thread_id>`)
   - если сообщение пришло не из forum topic, ignore scope равен всему `chat_id`
@@ -101,6 +103,13 @@
 - После `/unignore` transport отвечает подтверждением в тот же chat/topic.
 - `/note <text>` не делает никаких transport-side действий, не отвечает пользователю и не пересылается в `Router`.
 - `/note` без непустого текста также не пересылается в `Router`.
+- `/done` работает только в forum topic.
+- `/done` вне forum topic отвечает диагностикой и не пересылается в `Router`.
+- `/done` в forum topic:
+  - меняет icon темы на `transport.done_forum_topic_icon_custom_emoji_id`
+  - затем закрывает тему
+  - затем отвечает подтверждением в тот же topic
+- Если `transport.done_forum_topic_icon_custom_emoji_id` не настроен, `/done` отвечает диагностикой и не выполняет partial-action.
 - Неизвестные slash-команды не являются transport-local command и должны уходить в `Router` как обычный текст.
 
 ## Ignore State Contract
@@ -176,6 +185,7 @@ return [
         'unknown_chat_text' => 'Этот чат не привязан к tenant.',
         'status_instruction_text' => 'Закрепите следующее сообщение для отображения текущего статуса.',
         'idle_status_text' => 'Свободен',
+        'done_forum_topic_icon_custom_emoji_id' => '5312536423851630000',
     ],
     'db' => [
         'host' => '127.0.0.1',

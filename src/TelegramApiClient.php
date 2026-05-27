@@ -111,6 +111,36 @@ final class TelegramApiClient implements TelegramClientInterface
         $this->request('sendChatAction', $payload);
     }
 
+    public function editForumTopic(
+        int|string $chat_id,
+        int $message_thread_id,
+        ?string $name = null,
+        ?string $icon_custom_emoji_id = null
+    ): void {
+        $payload = [
+            'chat_id' => $chat_id,
+            'message_thread_id' => $message_thread_id,
+        ];
+
+        if ($name !== null && trim($name) !== '') {
+            $payload['name'] = trim($name);
+        }
+
+        if ($icon_custom_emoji_id !== null && trim($icon_custom_emoji_id) !== '') {
+            $payload['icon_custom_emoji_id'] = trim($icon_custom_emoji_id);
+        }
+
+        $this->request('editForumTopic', $payload);
+    }
+
+    public function closeForumTopic(int|string $chat_id, int $message_thread_id): void
+    {
+        $this->request('closeForumTopic', [
+            'chat_id' => $chat_id,
+            'message_thread_id' => $message_thread_id,
+        ]);
+    }
+
     public function getUpdates(?int $offset, int $timeout, int $limit = 100): array
     {
         $payload = [

@@ -96,6 +96,10 @@ final class TelegramTransport
             ];
         }
 
+        if ($this->isDoneCommand($message->text)) {
+            return $this->handleDoneCommand($message);
+        }
+
         $ignore_scope = $this->ingressScopeFor($message);
         if ($this->ignore_store->isIgnored($ignore_scope)) {
             RuntimeLog::info('Ignored inbound message by local scope rule', [
@@ -357,6 +361,67 @@ final class TelegramTransport
     private function isNoteCommand(string $text): bool
     {
         return preg_match('/^\/note(?:@\S+)?(?:\s+.*)?$/ui', trim($text)) === 1;
+    }
+
+    private function isDoneCommand(string $text): bool
+    {
+        return preg_match('/^\/done(?:@\S+)?\s*$/ui', trim($text)) === 1;
+    }
+
+    /**
+     * @return array{accepted: bool, messages: list<array<string, mixed>>}
+     */
+    private function handleDoneCommand(TelegramInboundMessage $message): array
+    {
+        if ($message->thread_id === null || $message->thread_id <= 0) {
+            RuntimeLog::info('Rejected local done command outside forum topic', [
+                'chat_id' => $message->chat_id,
+                'opaque' => $message->opaque,
+            ]);
+
+            return [
+                'accepted' => true,
+                'messages' => [
+                    $this->sendTextReply($message, 'Команда /done работает только в forum topic.', null, true),
+                ],
+            ];
+        }
+
+        $icon_custom_emoji_id = trim($this->config->done_forum_topic_icon_custom_emoji_id);
+        if ($icon_custom_emoji_id === '') {
+            RuntimeLog::error('Done command is not configured: missing forum topic icon id', [
+                'chat_id' => $message->chat_id,
+                'opaque' => $message->opaque,
+            ]);
+
+            return [
+                'accepted' => true,
+                'messages' => [
+                    $this->sendTextReply(
+                        $message,
+                        'Команда /done не настроена: отсутствует done_forum_topic_icon_custom_emoji_id.',
+                        null,
+                        true
+                    ),
+                ],
+            ];
+        }
+
+        $this->telegram->editForumTopic($message->chat_id, $message->thread_id, null, $icon_custom_emoji_id);
+        $this->telegram->closeForumTopic($message->chat_id, $message->thread_id);
+        RuntimeLog::info('Forum topic marked done and closed', [
+            'chat_id' => $message->chat_id,
+            'opaque' => $message->opaque,
+            'thread_id' => $message->thread_id,
+            'icon_custom_emoji_id' => $icon_custom_emoji_id,
+        ]);
+
+        return [
+            'accepted' => true,
+            'messages' => [
+                $this->sendTextReply($message, 'Тема закрыта.', null, true),
+            ],
+        ];
     }
 
     private function ingressScopeFor(TelegramInboundMessage $message): string

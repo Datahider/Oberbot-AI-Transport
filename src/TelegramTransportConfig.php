@@ -22,6 +22,7 @@ final class TelegramTransportConfig
         public readonly string $unknown_chat_text,
         public readonly string $status_instruction_text,
         public readonly string $idle_status_text,
+        public readonly string $done_forum_topic_icon_custom_emoji_id = '',
         public readonly string $db_host = '',
         public readonly string $db_user = '',
         public readonly string $db_pass = '',
@@ -52,6 +53,7 @@ final class TelegramTransportConfig
         $unknown_chat_text = trim((string) ($transport['unknown_chat_text'] ?? ''));
         $status_instruction_text = trim((string) ($transport['status_instruction_text'] ?? ''));
         $idle_status_text = trim((string) ($transport['idle_status_text'] ?? ''));
+        $done_forum_topic_icon_custom_emoji_id = trim((string) ($transport['done_forum_topic_icon_custom_emoji_id'] ?? ''));
 
         if ($router_base_url === '') {
             throw new RuntimeException('Missing required config value: router.base_url');
@@ -119,6 +121,7 @@ final class TelegramTransportConfig
             unknown_chat_text: $unknown_chat_text,
             status_instruction_text: $status_instruction_text,
             idle_status_text: $idle_status_text,
+            done_forum_topic_icon_custom_emoji_id: $done_forum_topic_icon_custom_emoji_id,
             db_host: $db_host,
             db_user: $db_user,
             db_pass: $db_pass,
