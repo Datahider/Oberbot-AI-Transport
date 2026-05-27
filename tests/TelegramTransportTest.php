@@ -418,7 +418,7 @@ function testDoneCommandEditsIconAndClosesForumTopic(): void
         'chat_id' => '-100123',
         'message_thread_id' => 77,
         'name' => null,
-        'icon_custom_emoji_id' => '5312536423851630000',
+        'icon_custom_emoji_id' => '5408906741125490282',
     ], $telegram->edited_topics[0] ?? null, 'done icon edit');
     assertSame([
         'chat_id' => '-100123',
@@ -526,9 +526,8 @@ function buildConfig(): TelegramTransportConfig
         telegram_poll_timeout_seconds: 20,
         unknown_chat_text: 'unknown chat',
         status_instruction_text: 'pin this',
-        idle_status_text: 'idle'
-        ,
-        done_forum_topic_icon_custom_emoji_id: '5312536423851630000'
+        idle_status_text: 'idle',
+        done_forum_topic_icon_custom_emoji_id: '5408906741125490282'
     );
 }
 
