@@ -14,7 +14,7 @@ DEPLOY_HOST="${TELEGRAM_TRANSPORT_DEPLOY_HOST:-}"
 DEPLOY_PORT="${TELEGRAM_TRANSPORT_DEPLOY_PORT:-22}"
 DEPLOY_USER="${TELEGRAM_TRANSPORT_DEPLOY_USER:-}"
 REMOTE_APP_DIR="${TELEGRAM_TRANSPORT_REMOTE_APP_DIR:-}"
-REMOTE_SERVICE="${TELEGRAM_TRANSPORT_REMOTE_SERVICE:-codex-multitenant-telegram.service}"
+REMOTE_SERVICE="${TELEGRAM_TRANSPORT_REMOTE_SERVICE:-codex-multitenant-telegram}"
 REMOTE_PHP_BIN="${TELEGRAM_TRANSPORT_REMOTE_PHP_BIN:-php}"
 REMOTE_COMPOSER_BIN="${TELEGRAM_TRANSPORT_REMOTE_COMPOSER_BIN:-composer}"
 
@@ -75,7 +75,7 @@ ssh $SSH_OPTS "$REMOTE" "
     set -euo pipefail
     cd '$REMOTE_APP_DIR' \
     && '$REMOTE_COMPOSER_BIN' install --no-dev --prefer-dist --no-interaction \
-    && sudo install -m 0644 '$REMOTE_APP_DIR/systemd/$REMOTE_SERVICE' '/etc/systemd/system/$REMOTE_SERVICE' \
+    && sudo install -m 0644 '$REMOTE_APP_DIR/systemd/$REMOTE_SERVICE.service' '/etc/systemd/system/$REMOTE_SERVICE.service' \
     && sudo systemctl daemon-reload \
     && sudo systemctl enable '$REMOTE_SERVICE' \
     && sudo systemctl restart '$REMOTE_SERVICE'
