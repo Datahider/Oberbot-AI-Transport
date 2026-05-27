@@ -19,3 +19,6 @@
 ## Технологический базис
 - Основной runtime: PHP.
 - Канонический внешний boundary — Telegram-compatible HTTP API.
+
+## Деплой
+- Канонический деплой этого проекта: `run /home/web/Документы/Codex-Multitenant/Transport-Telegram/deploy.sh`
