@@ -34,15 +34,15 @@ final class TelegramBotCommandCatalog
             ],
             [
                 'command' => 'stop',
-                'description' => 'forward stop request to upstream stack',
+                'description' => 'interrupt current agent turn',
             ],
             [
                 'command' => 'reset',
-                'description' => 'forward reset request to upstream stack',
+                'description' => 'reset codex session for current dialog',
             ],
             [
                 'command' => 'session',
-                'description' => 'forward session request to upstream stack',
+                'description' => 'inspect or assign codex session for current dialog',
             ],
         ];
     }
