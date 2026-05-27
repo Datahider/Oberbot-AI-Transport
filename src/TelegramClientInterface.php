@@ -7,6 +7,11 @@ namespace CodexMultitenant\TransportTelegram;
 interface TelegramClientInterface
 {
     /**
+     * @param list<array{command: string, description: string}> $commands
+     */
+    public function setMyCommands(array $commands): void;
+
+    /**
      * @return array<string, mixed>
      */
     public function sendMessage(

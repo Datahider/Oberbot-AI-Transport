@@ -16,6 +16,8 @@ final class IngressRunner
 
     public function run(): void
     {
+        $this->telegram->setMyCommands(TelegramBotCommandCatalog::all());
+
         $telegram_offset = $this->cursor_store->loadTelegramOffset();
 
         while (true) {

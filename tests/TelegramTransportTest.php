@@ -8,8 +8,10 @@ use CodexMultitenant\TransportTelegram\OutboundEvent;
 use CodexMultitenant\TransportTelegram\OutboundRunner;
 use CodexMultitenant\TransportTelegram\RouterClientInterface;
 use CodexMultitenant\TransportTelegram\IgnoreStateStoreInterface;
+use CodexMultitenant\TransportTelegram\IngressRunner;
 use CodexMultitenant\TransportTelegram\StatusState;
 use CodexMultitenant\TransportTelegram\StatusStateStoreInterface;
+use CodexMultitenant\TransportTelegram\TelegramBotCommandCatalog;
 use CodexMultitenant\TransportTelegram\TelegramClientInterface;
 use CodexMultitenant\TransportTelegram\TelegramTransport;
 use CodexMultitenant\TransportTelegram\TelegramTransportConfig;
@@ -174,6 +176,35 @@ function testCommentarySendsTypingAfterMessage(): void
 
     assertSame('<i>Watch <code>logs</code></i>', $telegram->sent_messages[0]['text'] ?? null, 'commentary text');
     assertSame('typing', $telegram->chat_actions[0]['action'] ?? null, 'typing after commentary');
+}
+
+function testIngressRunnerRegistersBotCommandsBeforePolling(): void
+{
+    $telegram = new FakeTelegramClient();
+    $telegram->throw_on_get_updates = true;
+    $runner = new IngressRunner(
+        buildConfig(),
+        $telegram,
+        new TelegramTransport(
+            buildConfig(),
+            new FakeRouterClient(),
+            $telegram,
+            new InMemoryTenantMap([]),
+            new InMemoryStatusStateStore(),
+            new InMemoryIgnoreStateStore()
+        ),
+        new InMemoryCursorStore()
+    );
+
+    try {
+        $runner->run();
+        fail('Expected polling stop');
+    } catch (RuntimeException $e) {
+        assertSame('stop polling', $e->getMessage(), 'polling stop');
+    }
+
+    assertSame(TelegramBotCommandCatalog::all(), $telegram->bot_commands, 'registered bot commands');
+    assertSame(1, $telegram->get_updates_calls, 'polling attempted after commands registration');
 }
 
 function testStatusEventCreatesInstructionAndStatusMessage(): void
@@ -579,6 +610,9 @@ final class SequencedOutboundRouterClient implements RouterClientInterface
 
 class FakeTelegramClient implements TelegramClientInterface
 {
+    /** @var list<array{command: string, description: string}> */
+    public array $bot_commands = [];
+
     /** @var list<array<string, mixed>> */
     public array $sent_messages = [];
 
@@ -593,6 +627,14 @@ class FakeTelegramClient implements TelegramClientInterface
 
     /** @var list<array<string, mixed>> */
     public array $closed_topics = [];
+
+    public bool $throw_on_get_updates = false;
+    public int $get_updates_calls = 0;
+
+    public function setMyCommands(array $commands): void
+    {
+        $this->bot_commands = $commands;
+    }
 
     /**
      * @return array<string, mixed>
@@ -658,6 +700,11 @@ class FakeTelegramClient implements TelegramClientInterface
 
     public function getUpdates(?int $offset, int $timeout, int $limit = 100): array
     {
+        $this->get_updates_calls++;
+        if ($this->throw_on_get_updates) {
+            throw new RuntimeException('stop polling');
+        }
+
         return [];
     }
 }
@@ -749,6 +796,7 @@ testNormalizerRejectsUnsupportedUpdate();
 testStatusCommandDefaultsToEnabled();
 testUnknownChatReplySkipsRouterIngress();
 testCommentarySendsTypingAfterMessage();
+testIngressRunnerRegistersBotCommandsBeforePolling();
 testStatusEventCreatesInstructionAndStatusMessage();
 testIgnoreCommandSuppressesForumThreadIngressOnly();
 testUnignoreCommandRestoresChatIngress();

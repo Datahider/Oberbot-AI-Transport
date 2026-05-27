@@ -34,6 +34,28 @@ final class TelegramApiClient implements TelegramClientInterface
         $this->base_url = $path . $token . '/';
     }
 
+    public function setMyCommands(array $commands): void
+    {
+        $normalized_commands = [];
+
+        foreach ($commands as $command) {
+            $name = trim((string) ($command['command'] ?? ''));
+            $description = trim((string) ($command['description'] ?? ''));
+            if ($name === '' || $description === '') {
+                throw new RuntimeException('Telegram bot command payload is invalid');
+            }
+
+            $normalized_commands[] = [
+                'command' => $name,
+                'description' => $description,
+            ];
+        }
+
+        $this->request('setMyCommands', [
+            'commands' => $normalized_commands,
+        ]);
+    }
+
     public function sendMessage(
         int|string $chat_id,
         string $text,

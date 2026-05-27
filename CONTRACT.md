@@ -112,6 +112,16 @@
 - Если `transport.done_forum_topic_icon_custom_emoji_id` не настроен, `/done` отвечает диагностикой и не выполняет partial-action.
 - Неизвестные slash-команды не являются transport-local command и должны уходить в `Router` как обычный текст.
 
+## Telegram Bot Commands Menu Contract
+- При каждом старте ingress-процесса transport обязан вызывать Telegram Bot API `setMyCommands` до первого `getUpdates`.
+- Transport обязан публиковать ровно эти команды в bot menu:
+  - `/status` — `show or toggle status message`
+  - `/ignore` — `suppress ingress for this chat/topic`
+  - `/unignore` — `resume ingress for this chat/topic`
+  - `/note` — `store note locally without forwarding`
+  - `/done` — `close current forum topic`
+- Ошибка `setMyCommands` считается operational failure и должна прерывать запуск без fallback.
+
 ## Ignore State Contract
 - Ingress-ignore state хранится в БД транспорта.
 - State key:
