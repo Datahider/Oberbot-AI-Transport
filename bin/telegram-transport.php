@@ -5,10 +5,8 @@ declare(strict_types=1);
 
 require __DIR__ . '/../src/bootstrap.php';
 
-use CodexMultitenant\TransportTelegram\RuntimeFactory;
 use CodexMultitenant\TransportTelegram\TelegramTransportConfig;
+use CodexMultitenant\TransportTelegram\RuntimeFactory;
 
 $config_path = $argv[1] ?? TelegramTransportConfig::CONFIG_PATH;
-$config = TelegramTransportConfig::fromConfigPath($config_path);
-
-RuntimeFactory::createRunner($config)->run();
+RuntimeFactory::createMainRunner($config_path)->run();

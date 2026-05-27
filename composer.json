@@ -5,6 +5,7 @@
     "require": {
         "php": "^8.2",
         "fastvolt/markdown": "v0.3.0.x-dev",
+        "losthost/background-process": "^1.1",
         "losthost/db": "^3.5@beta"
     },
     "autoload": {

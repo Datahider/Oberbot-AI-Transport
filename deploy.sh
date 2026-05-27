@@ -75,11 +75,10 @@ ssh $SSH_OPTS "$REMOTE" "
     set -euo pipefail
     cd '$REMOTE_APP_DIR' \
     && '$REMOTE_COMPOSER_BIN' install --no-dev --prefer-dist --no-interaction \
-    && mkdir -p \"\$HOME/.config/systemd/user\" \
-    && install -m 0644 '$REMOTE_APP_DIR/systemd/$REMOTE_SERVICE' \"\$HOME/.config/systemd/user/$REMOTE_SERVICE\" \
-    && XDG_RUNTIME_DIR=\"/run/user/\$(id -u)\" systemctl --user daemon-reload \
-    && XDG_RUNTIME_DIR=\"/run/user/\$(id -u)\" systemctl --user enable '$REMOTE_SERVICE' \
-    && XDG_RUNTIME_DIR=\"/run/user/\$(id -u)\" systemctl --user restart '$REMOTE_SERVICE'
+    && sudo install -m 0644 '$REMOTE_APP_DIR/systemd/$REMOTE_SERVICE' '/etc/systemd/system/$REMOTE_SERVICE' \
+    && sudo systemctl daemon-reload \
+    && sudo systemctl enable '$REMOTE_SERVICE' \
+    && sudo systemctl restart '$REMOTE_SERVICE'
 "
 
 echo "Deploy completed."
