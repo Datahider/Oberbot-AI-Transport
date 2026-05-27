@@ -75,9 +75,6 @@ ssh $SSH_OPTS "$REMOTE" "
     set -euo pipefail
     cd '$REMOTE_APP_DIR' \
     && '$REMOTE_COMPOSER_BIN' install --no-dev --prefer-dist --no-interaction \
-    && sudo install -m 0644 '$REMOTE_APP_DIR/systemd/$REMOTE_SERVICE.service' '/etc/systemd/system/$REMOTE_SERVICE.service' \
-    && sudo systemctl daemon-reload \
-    && sudo systemctl enable '$REMOTE_SERVICE' \
     && sudo systemctl restart '$REMOTE_SERVICE'
 "
 
