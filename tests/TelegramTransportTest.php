@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 
 use CodexMultitenant\TransportTelegram\OutboundEvent;
+use CodexMultitenant\TransportTelegram\OutboundRunner;
 use CodexMultitenant\TransportTelegram\RouterClientInterface;
 use CodexMultitenant\TransportTelegram\StatusState;
 use CodexMultitenant\TransportTelegram\StatusStateStoreInterface;
@@ -13,6 +14,7 @@ use CodexMultitenant\TransportTelegram\TelegramTransport;
 use CodexMultitenant\TransportTelegram\TelegramTransportConfig;
 use CodexMultitenant\TransportTelegram\TelegramUpdateNormalizer;
 use CodexMultitenant\TransportTelegram\TenantMapInterface;
+use CodexMultitenant\TransportTelegram\CursorStoreInterface;
 
 function testConfigRequiresTelegramToken(): void
 {
@@ -194,6 +196,78 @@ function testStatusEventCreatesInstructionAndStatusMessage(): void
     assertSame('Busy: 42', $telegram->sent_messages[1]['text'] ?? null, 'status message');
 }
 
+function testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery(): void
+{
+    $telegram = new FakeTelegramClient();
+    $cursor_store = new InMemoryCursorStore();
+    $router = new SequencedOutboundRouterClient([
+        [[
+            'event_id' => 51,
+            'opaque' => '100',
+            'kind' => 'final',
+            'text' => 'done',
+            'attachments' => [],
+            'meta' => [],
+        ]],
+    ]);
+    $status_store = new InMemoryStatusStateStore();
+    $status_store->save(new StatusState('100', true, null, null));
+    $transport = new TelegramTransport(
+        buildConfig(),
+        new FakeRouterClient(),
+        $telegram,
+        new InMemoryTenantMap(['100' => 'user@server']),
+        $status_store
+    );
+
+    $runner = new OutboundRunner($router, $transport, $cursor_store);
+
+    try {
+        $runner->run();
+        fail('Expected runner to stop after fake router exhaustion');
+    } catch (RuntimeException $e) {
+        assertSame('stop polling', $e->getMessage(), 'runner stop marker');
+    }
+
+    assertSame(51, $cursor_store->router_after_id, 'cursor after successful delivery');
+    assertSame('✅ done', $telegram->sent_messages[0]['text'] ?? null, 'delivered final text');
+}
+
+function testOutboundRunnerKeepsCursorWhenDeliveryFails(): void
+{
+    $status_store = new InMemoryStatusStateStore();
+    $status_store->save(new StatusState('100', true, null, null));
+    $transport = new TelegramTransport(
+        buildConfig(),
+        new FakeRouterClient(),
+        new ThrowingTelegramClient(),
+        new InMemoryTenantMap(['100' => 'user@server']),
+        $status_store
+    );
+    $cursor_store = new InMemoryCursorStore();
+    $router = new SequencedOutboundRouterClient([
+        [[
+            'event_id' => 52,
+            'opaque' => '100',
+            'kind' => 'final',
+            'text' => 'broken',
+            'attachments' => [],
+            'meta' => [],
+        ]],
+    ]);
+
+    $runner = new OutboundRunner($router, $transport, $cursor_store);
+
+    try {
+        $runner->run();
+        fail('Expected delivery failure to bubble');
+    } catch (RuntimeException $e) {
+        assertSame('delivery failed', $e->getMessage(), 'delivery failure marker');
+    }
+
+    assertSame(0, $cursor_store->router_after_id, 'cursor after failed delivery');
+}
+
 function buildConfig(): TelegramTransportConfig
 {
     return new TelegramTransportConfig(
@@ -233,7 +307,31 @@ final class FakeRouterClient implements RouterClientInterface
     }
 }
 
-final class FakeTelegramClient implements TelegramClientInterface
+final class SequencedOutboundRouterClient implements RouterClientInterface
+{
+    /**
+     * @param list<list<array<string, mixed>>> $batches
+     */
+    public function __construct(private array $batches)
+    {
+    }
+
+    public function postIngress(array $payload): array
+    {
+        throw new RuntimeException('not used');
+    }
+
+    public function getOutboundEvents(int $after_id, int $wait, int $limit): array
+    {
+        if ($this->batches === []) {
+            throw new RuntimeException('stop polling');
+        }
+
+        return array_shift($this->batches);
+    }
+}
+
+class FakeTelegramClient implements TelegramClientInterface
 {
     /** @var list<array<string, mixed>> */
     public array $sent_messages = [];
@@ -325,6 +423,40 @@ final class InMemoryStatusStateStore implements StatusStateStoreInterface
     }
 }
 
+final class InMemoryCursorStore implements CursorStoreInterface
+{
+    public int $router_after_id = 0;
+    public int $telegram_offset = 0;
+
+    public function loadRouterAfterId(): int
+    {
+        return $this->router_after_id;
+    }
+
+    public function saveRouterAfterId(int $after_id): void
+    {
+        $this->router_after_id = $after_id;
+    }
+
+    public function loadTelegramOffset(): int
+    {
+        return $this->telegram_offset;
+    }
+
+    public function saveTelegramOffset(int $offset): void
+    {
+        $this->telegram_offset = $offset;
+    }
+}
+
+final class ThrowingTelegramClient extends FakeTelegramClient
+{
+    public function sendMessage(int|string $chat_id, string $text, ?int $reply_to_message_id = null, ?string $parse_mode = null, bool $disable_notification = false, ?int $message_thread_id = null): array
+    {
+        throw new RuntimeException('delivery failed');
+    }
+}
+
 testConfigRequiresTelegramToken();
 testNormalizerBuildsOpaqueWithThread();
 testNormalizerRejectsUnsupportedUpdate();
@@ -332,5 +464,7 @@ testStatusCommandDefaultsToEnabled();
 testUnknownChatReplySkipsRouterIngress();
 testCommentarySendsTypingAfterMessage();
 testStatusEventCreatesInstructionAndStatusMessage();
+testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery();
+testOutboundRunnerKeepsCursorWhenDeliveryFails();
 
 fwrite(STDOUT, "TelegramTransport tests: OK\n");

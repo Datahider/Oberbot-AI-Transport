@@ -28,17 +28,27 @@ final class OutboundRunner
 
             foreach ($events as $payload) {
                 $event = OutboundEvent::fromArray($payload);
-                if ($event->event_id > $router_after_id) {
-                    $router_after_id = $event->event_id;
-                    $this->cursor_store->saveRouterAfterId($router_after_id);
-                }
-
                 RuntimeLog::info('Delivering outbound event', [
                     'event_id' => $event->event_id,
                     'kind' => $event->kind,
                     'opaque' => $event->opaque,
                 ]);
-                $this->transport->deliverOutboundEvent($event);
+                try {
+                    $this->transport->deliverOutboundEvent($event);
+                } catch (\Throwable $e) {
+                    RuntimeLog::error('Outbound delivery failed', [
+                        'event_id' => $event->event_id,
+                        'kind' => $event->kind,
+                        'opaque' => $event->opaque,
+                        'error' => $e->getMessage(),
+                    ]);
+                    throw $e;
+                }
+
+                if ($event->event_id > $router_after_id) {
+                    $router_after_id = $event->event_id;
+                    $this->cursor_store->saveRouterAfterId($router_after_id);
+                }
             }
         }
     }
