@@ -19,7 +19,14 @@ final class MainRunner
 
     public function run(): void
     {
-        $log_dir = $this->project_root . '/var/log';
+        $project_root = realpath($this->project_root);
+        $bootstrap_path = realpath($this->bootstrap_path);
+        $config_path = realpath($this->config_path);
+        if ($project_root === false || $bootstrap_path === false || $config_path === false) {
+            throw new \RuntimeException('Cannot resolve outbound worker paths');
+        }
+
+        $log_dir = $project_root . '/var/log';
         if (!is_dir($log_dir)) {
             mkdir($log_dir, 0775, true);
         }
@@ -33,9 +40,9 @@ use CodexMultitenant\TransportTelegram\RuntimeFactory;
 $runner = RuntimeFactory::createOutboundRunner(%s);
 $runner->run();
 PHP)->run(
-            $this->project_root,
-            $this->bootstrap_path,
-            $this->config_path,
+            $project_root,
+            $bootstrap_path,
+            $config_path,
             $outbound_log
         );
 
