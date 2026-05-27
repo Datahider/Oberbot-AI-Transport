@@ -26,6 +26,13 @@ final class TransportRunner
 
         while (true) {
             $events = $this->router->getOutboundEvents($router_after_id, $cycle_timeout, 100);
+            if ($events !== []) {
+                RuntimeLog::info('Router outbound polled', [
+                    'count' => count($events),
+                    'after_id_before' => $router_after_id,
+                ]);
+            }
+
             foreach ($events as $payload) {
                 $event = OutboundEvent::fromArray($payload);
                 if ($event->event_id > $router_after_id) {
@@ -33,6 +40,11 @@ final class TransportRunner
                     $this->cursor_store->saveRouterAfterId($router_after_id);
                 }
 
+                RuntimeLog::info('Delivering outbound event', [
+                    'event_id' => $event->event_id,
+                    'kind' => $event->kind,
+                    'opaque' => $event->opaque,
+                ]);
                 $this->transport->deliverOutboundEvent($event);
             }
 
@@ -41,6 +53,12 @@ final class TransportRunner
                 $cycle_timeout,
                 100
             );
+            if ($updates !== []) {
+                RuntimeLog::info('Telegram updates polled', [
+                    'count' => count($updates),
+                    'offset_before' => $telegram_offset,
+                ]);
+            }
 
             foreach ($updates as $update) {
                 $update_id = (int) ($update['update_id'] ?? 0);
@@ -49,6 +67,9 @@ final class TransportRunner
                     $this->cursor_store->saveTelegramOffset($telegram_offset);
                 }
 
+                RuntimeLog::info('Handling Telegram update', [
+                    'update_id' => $update_id,
+                ]);
                 $this->transport->handleIncomingUpdate($update);
             }
         }

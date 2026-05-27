@@ -31,6 +31,9 @@ final class TelegramTransport
     {
         $message = $this->normalizer->normalize($update);
         if ($message === null) {
+            RuntimeLog::info('Ignored unsupported Telegram update', [
+                'update_id' => $update['update_id'] ?? null,
+            ]);
             return [
                 'accepted' => false,
                 'messages' => [],
@@ -39,6 +42,11 @@ final class TelegramTransport
 
         $status_command = $this->parseStatusCommand($message->text);
         if ($status_command !== null) {
+            RuntimeLog::info('Handling local status command', [
+                'chat_id' => $message->chat_id,
+                'opaque' => $message->opaque,
+                'command_mode' => $status_command,
+            ]);
             return [
                 'accepted' => true,
                 'messages' => [$this->handleStatusCommand($message, $status_command)],
@@ -47,6 +55,10 @@ final class TelegramTransport
 
         $tenant = $this->tenant_map->tenantForChat($message->chat_id);
         if ($tenant === null) {
+            RuntimeLog::info('Rejected inbound message without tenant binding', [
+                'chat_id' => $message->chat_id,
+                'opaque' => $message->opaque,
+            ]);
             return [
                 'accepted' => false,
                 'messages' => [
@@ -68,6 +80,13 @@ final class TelegramTransport
             'attachments' => [],
             'meta' => $message->meta,
         ]);
+        RuntimeLog::info('Forwarded inbound message to Router', [
+            'chat_id' => $message->chat_id,
+            'opaque' => $message->opaque,
+            'tenant' => $tenant,
+            'accepted' => $response['accepted'] ?? null,
+            'event_id' => $response['event_id'] ?? null,
+        ]);
 
         $messages = [];
         $action = is_array($response['action'] ?? null) ? $response['action'] : [];
@@ -87,9 +106,22 @@ final class TelegramTransport
     public function deliverOutboundEvent(OutboundEvent $event): void
     {
         [$chat_id, $thread_id] = $this->resolveOpaque($event->opaque);
+        RuntimeLog::info('Dispatching outbound event to Telegram', [
+            'event_id' => $event->event_id,
+            'kind' => $event->kind,
+            'chat_id' => $chat_id,
+            'thread_id' => $thread_id,
+            'opaque' => $event->opaque,
+        ]);
 
         if ($event->kind === 'heartbeat') {
             $this->telegram->sendChatAction($chat_id, 'typing', $thread_id);
+            RuntimeLog::info('Telegram chat action sent', [
+                'event_id' => $event->event_id,
+                'chat_id' => $chat_id,
+                'thread_id' => $thread_id,
+                'action' => 'typing',
+            ]);
             return;
         }
 
@@ -101,8 +133,20 @@ final class TelegramTransport
         if ($event->kind === 'commentary') {
             $text = $this->renderer->renderCommentary($event->text);
             if ($text !== '') {
-                $this->telegram->sendMessage($chat_id, $text, null, 'HTML', true, $thread_id);
+                $result = $this->telegram->sendMessage($chat_id, $text, null, 'HTML', true, $thread_id);
+                RuntimeLog::info('Telegram commentary sent', [
+                    'event_id' => $event->event_id,
+                    'chat_id' => $chat_id,
+                    'thread_id' => $thread_id,
+                    'message_id' => $result['result']['message_id'] ?? $result['message_id'] ?? null,
+                ]);
                 $this->telegram->sendChatAction($chat_id, 'typing', $thread_id);
+                RuntimeLog::info('Telegram chat action sent', [
+                    'event_id' => $event->event_id,
+                    'chat_id' => $chat_id,
+                    'thread_id' => $thread_id,
+                    'action' => 'typing',
+                ]);
             }
             return;
         }
@@ -112,7 +156,13 @@ final class TelegramTransport
             return;
         }
 
-        $this->telegram->sendMessage($chat_id, $text, null, 'HTML', false, $thread_id);
+        $result = $this->telegram->sendMessage($chat_id, $text, null, 'HTML', false, $thread_id);
+        RuntimeLog::info('Telegram final message sent', [
+            'event_id' => $event->event_id,
+            'chat_id' => $chat_id,
+            'thread_id' => $thread_id,
+            'message_id' => $result['result']['message_id'] ?? $result['message_id'] ?? null,
+        ]);
     }
 
     /**
@@ -150,8 +200,20 @@ final class TelegramTransport
             try {
                 $this->telegram->editMessageText($chat_id, $state->message_id, $rendered, 'HTML', $thread_id);
                 $this->status_store->save($state->withMessage($state->message_id, $event->text));
+                RuntimeLog::info('Telegram status message updated', [
+                    'event_id' => $event->event_id,
+                    'chat_id' => $chat_id,
+                    'thread_id' => $thread_id,
+                    'message_id' => $state->message_id,
+                ]);
                 return;
             } catch (Throwable) {
+                RuntimeLog::error('Telegram status update failed, recreating', [
+                    'event_id' => $event->event_id,
+                    'chat_id' => $chat_id,
+                    'thread_id' => $thread_id,
+                    'message_id' => $state->message_id,
+                ]);
             }
         }
 
@@ -159,6 +221,12 @@ final class TelegramTransport
         $message = $this->telegram->sendMessage($chat_id, $rendered, null, 'HTML', true, $thread_id);
         $created_id = $message['result']['message_id'] ?? $message['message_id'] ?? null;
         $this->status_store->save($state->withMessage(is_numeric($created_id) ? (int) $created_id : null, $event->text));
+        RuntimeLog::info('Telegram status message created', [
+            'event_id' => $event->event_id,
+            'chat_id' => $chat_id,
+            'thread_id' => $thread_id,
+            'message_id' => is_numeric($created_id) ? (int) $created_id : null,
+        ]);
     }
 
     /**
