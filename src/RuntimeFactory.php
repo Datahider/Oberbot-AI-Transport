@@ -32,7 +32,8 @@ final class RuntimeFactory
             $router,
             $telegram,
             new DbTenantMap(),
-            new DbStatusStateStore()
+            new DbStatusStateStore(),
+            new DbIgnoreStateStore()
         );
 
         return new MainRunner(
@@ -74,7 +75,8 @@ final class RuntimeFactory
                 $router,
                 $telegram,
                 new DbTenantMap(),
-                new DbStatusStateStore()
+                new DbStatusStateStore(),
+                new DbIgnoreStateStore()
             ),
             new DbCursorStore()
         );

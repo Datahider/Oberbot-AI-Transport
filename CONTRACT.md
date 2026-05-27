@@ -88,7 +88,28 @@
   - `/status on`
   - `/status off`
 - `/status` без аргумента показывает текущее состояние status-message и краткую справку.
+- `Transport-Telegram` также обрабатывает локально команды suppress/annotation:
+  - `/ignore`
+  - `/unignore`
+  - `/note <text>`
+- `/ignore` включает ingress-ignore для текущего Telegram target:
+  - если сообщение пришло из forum topic, ignore scope равен точному `opaque` (`<chat_id>:<thread_id>`)
+  - если сообщение пришло не из forum topic, ignore scope равен всему `chat_id`
+- После `/ignore` transport отвечает подтверждением в тот же chat/topic.
+- После успешного `/ignore` transport больше не пересылает в `Router` никакие последующие сообщения из этого scope.
+- `/unignore` выключает ingress-ignore для того же scope, который определился бы для `/ignore` в текущем сообщении.
+- После `/unignore` transport отвечает подтверждением в тот же chat/topic.
+- `/note <text>` не делает никаких transport-side действий, не отвечает пользователю и не пересылается в `Router`.
+- `/note` без непустого текста также не пересылается в `Router`.
 - Неизвестные slash-команды не являются transport-local command и должны уходить в `Router` как обычный текст.
+
+## Ignore State Contract
+- Ingress-ignore state хранится в БД транспорта.
+- State key:
+  - для forum topic: точный `opaque`
+  - для обычного чата: строковый `chat_id`
+- Ignore state влияет только на inbound forwarding в `Router`.
+- Ignore state не влияет на outbound delivery и не отключает локальные transport-команды.
 
 ## Status Message Contract
 - Для каждого `opaque` status-message включён по умолчанию.

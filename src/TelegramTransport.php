@@ -17,7 +17,8 @@ final class TelegramTransport
         private RouterClientInterface $router,
         private TelegramClientInterface $telegram,
         private TenantMapInterface $tenant_map,
-        private StatusStateStoreInterface $status_store
+        private StatusStateStoreInterface $status_store,
+        private IgnoreStateStoreInterface $ignore_store
     ) {
         $this->normalizer = new TelegramUpdateNormalizer();
         $this->renderer = new TelegramTextRenderer();
@@ -50,6 +51,62 @@ final class TelegramTransport
             return [
                 'accepted' => true,
                 'messages' => [$this->handleStatusCommand($message, $status_command)],
+            ];
+        }
+
+        if ($this->isIgnoreCommand($message->text)) {
+            $scope = $this->ingressScopeFor($message);
+            $this->ignore_store->setIgnored($scope, true);
+            RuntimeLog::info('Enabled inbound ignore scope', [
+                'chat_id' => $message->chat_id,
+                'opaque' => $message->opaque,
+                'scope' => $scope,
+            ]);
+
+            return [
+                'accepted' => true,
+                'messages' => [$this->sendTextReply($message, 'Игнор: on', null, true)],
+            ];
+        }
+
+        if ($this->isUnignoreCommand($message->text)) {
+            $scope = $this->ingressScopeFor($message);
+            $this->ignore_store->setIgnored($scope, false);
+            RuntimeLog::info('Disabled inbound ignore scope', [
+                'chat_id' => $message->chat_id,
+                'opaque' => $message->opaque,
+                'scope' => $scope,
+            ]);
+
+            return [
+                'accepted' => true,
+                'messages' => [$this->sendTextReply($message, 'Игнор: off', null, true)],
+            ];
+        }
+
+        if ($this->isNoteCommand($message->text)) {
+            RuntimeLog::info('Consumed local note command', [
+                'chat_id' => $message->chat_id,
+                'opaque' => $message->opaque,
+            ]);
+
+            return [
+                'accepted' => true,
+                'messages' => [],
+            ];
+        }
+
+        $ignore_scope = $this->ingressScopeFor($message);
+        if ($this->ignore_store->isIgnored($ignore_scope)) {
+            RuntimeLog::info('Ignored inbound message by local scope rule', [
+                'chat_id' => $message->chat_id,
+                'opaque' => $message->opaque,
+                'scope' => $ignore_scope,
+            ]);
+
+            return [
+                'accepted' => false,
+                'messages' => [],
             ];
         }
 
@@ -285,6 +342,30 @@ final class TelegramTransport
         }
 
         return isset($matches[1]) ? strtolower((string) $matches[1]) : '';
+    }
+
+    private function isIgnoreCommand(string $text): bool
+    {
+        return preg_match('/^\/ignore(?:@\S+)?\s*$/ui', trim($text)) === 1;
+    }
+
+    private function isUnignoreCommand(string $text): bool
+    {
+        return preg_match('/^\/unignore(?:@\S+)?\s*$/ui', trim($text)) === 1;
+    }
+
+    private function isNoteCommand(string $text): bool
+    {
+        return preg_match('/^\/note(?:@\S+)?(?:\s+.*)?$/ui', trim($text)) === 1;
+    }
+
+    private function ingressScopeFor(TelegramInboundMessage $message): string
+    {
+        if ($message->thread_id !== null && $message->thread_id > 0) {
+            return $message->opaque;
+        }
+
+        return $message->chat_id;
     }
 
     /**

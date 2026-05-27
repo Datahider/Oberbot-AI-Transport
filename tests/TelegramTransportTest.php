@@ -7,6 +7,7 @@ require_once __DIR__ . '/bootstrap.php';
 use CodexMultitenant\TransportTelegram\OutboundEvent;
 use CodexMultitenant\TransportTelegram\OutboundRunner;
 use CodexMultitenant\TransportTelegram\RouterClientInterface;
+use CodexMultitenant\TransportTelegram\IgnoreStateStoreInterface;
 use CodexMultitenant\TransportTelegram\StatusState;
 use CodexMultitenant\TransportTelegram\StatusStateStoreInterface;
 use CodexMultitenant\TransportTelegram\TelegramClientInterface;
@@ -98,7 +99,8 @@ function testStatusCommandDefaultsToEnabled(): void
         new FakeRouterClient(),
         new FakeTelegramClient(),
         new InMemoryTenantMap(['100' => 'user@server']),
-        new InMemoryStatusStateStore()
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
     );
 
     $reply = $transport->handleIncomingUpdate([
@@ -126,7 +128,8 @@ function testUnknownChatReplySkipsRouterIngress(): void
         $router,
         $telegram,
         new InMemoryTenantMap([]),
-        new InMemoryStatusStateStore()
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
     );
 
     $transport->handleIncomingUpdate([
@@ -156,7 +159,8 @@ function testCommentarySendsTypingAfterMessage(): void
         new FakeRouterClient(),
         $telegram,
         new InMemoryTenantMap(['100' => 'user@server']),
-        $status
+        $status,
+        new InMemoryIgnoreStateStore()
     );
 
     $transport->deliverOutboundEvent(new OutboundEvent(
@@ -180,8 +184,174 @@ function testStatusEventCreatesInstructionAndStatusMessage(): void
         new FakeRouterClient(),
         $telegram,
         new InMemoryTenantMap(['100' => 'user@server']),
-        new InMemoryStatusStateStore()
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
     );
+
+function testIgnoreCommandSuppressesForumThreadIngressOnly(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router,
+        $telegram,
+        new InMemoryTenantMap(['-100123' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+
+    $reply = $transport->handleIncomingUpdate([
+        'update_id' => 16,
+        'message' => [
+            'message_id' => 910,
+            'message_thread_id' => 77,
+            'text' => '/ignore',
+            'chat' => [
+                'id' => -100123,
+                'type' => 'supergroup',
+            ],
+        ],
+    ]);
+
+    assertSame(true, $reply['accepted'], 'ignore accepted');
+    assertSame('Игнор: on', $reply['messages'][0]['text'] ?? null, 'ignore confirmation');
+    assertSame([], $router->ingress_payloads, 'ignore command not forwarded');
+
+    $suppressed = $transport->handleIncomingUpdate([
+        'update_id' => 17,
+        'message' => [
+            'message_id' => 911,
+            'message_thread_id' => 77,
+            'text' => 'hidden',
+            'chat' => [
+                'id' => -100123,
+                'type' => 'supergroup',
+            ],
+        ],
+    ]);
+
+    assertSame(false, $suppressed['accepted'], 'ignored message not accepted');
+    assertSame([], $suppressed['messages'], 'ignored message no reply');
+    assertSame([], $router->ingress_payloads, 'ignored thread not forwarded');
+
+    $other_thread = $transport->handleIncomingUpdate([
+        'update_id' => 18,
+        'message' => [
+            'message_id' => 912,
+            'message_thread_id' => 78,
+            'text' => 'visible',
+            'chat' => [
+                'id' => -100123,
+                'type' => 'supergroup',
+            ],
+        ],
+    ]);
+
+    assertSame(true, $other_thread['accepted'], 'other thread accepted');
+    assertSame('visible', $router->ingress_payloads[0]['text'] ?? null, 'other thread forwarded');
+    assertSame('-100123:78', $router->ingress_payloads[0]['opaque'] ?? null, 'other thread opaque');
+}
+
+function testUnignoreCommandRestoresChatIngress(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router,
+        $telegram,
+        new InMemoryTenantMap(['100' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+
+    $transport->handleIncomingUpdate([
+        'update_id' => 19,
+        'message' => [
+            'message_id' => 913,
+            'text' => '/ignore',
+            'chat' => [
+                'id' => 100,
+                'type' => 'private',
+            ],
+        ],
+    ]);
+
+    $transport->handleIncomingUpdate([
+        'update_id' => 20,
+        'message' => [
+            'message_id' => 914,
+            'text' => 'hidden',
+            'chat' => [
+                'id' => 100,
+                'type' => 'private',
+            ],
+        ],
+    ]);
+
+    assertSame([], $router->ingress_payloads, 'chat still ignored');
+
+    $reply = $transport->handleIncomingUpdate([
+        'update_id' => 21,
+        'message' => [
+            'message_id' => 915,
+            'text' => '/unignore',
+            'chat' => [
+                'id' => 100,
+                'type' => 'private',
+            ],
+        ],
+    ]);
+
+    assertSame('Игнор: off', $reply['messages'][0]['text'] ?? null, 'unignore confirmation');
+
+    $restored = $transport->handleIncomingUpdate([
+        'update_id' => 22,
+        'message' => [
+            'message_id' => 916,
+            'text' => 'visible again',
+            'chat' => [
+                'id' => 100,
+                'type' => 'private',
+            ],
+        ],
+    ]);
+
+    assertSame(true, $restored['accepted'], 'restored accepted');
+    assertSame('visible again', $router->ingress_payloads[0]['text'] ?? null, 'chat forwarded after unignore');
+}
+
+function testNoteCommandStaysLocalAndSilent(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router,
+        $telegram,
+        new InMemoryTenantMap(['100' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+
+    $result = $transport->handleIncomingUpdate([
+        'update_id' => 23,
+        'message' => [
+            'message_id' => 917,
+            'text' => '/note Good idea',
+            'chat' => [
+                'id' => 100,
+                'type' => 'private',
+            ],
+        ],
+    ]);
+
+    assertSame(true, $result['accepted'], 'note accepted');
+    assertSame([], $result['messages'], 'note silent');
+    assertSame([], $router->ingress_payloads, 'note not forwarded');
+    assertSame([], $telegram->sent_messages, 'note no telegram reply');
+}
 
     $transport->deliverOutboundEvent(new OutboundEvent(
         event_id: 15,
@@ -217,7 +387,8 @@ function testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery(): void
         new FakeRouterClient(),
         $telegram,
         new InMemoryTenantMap(['100' => 'user@server']),
-        $status_store
+        $status_store,
+        new InMemoryIgnoreStateStore()
     );
 
     $runner = new OutboundRunner($router, $transport, $cursor_store);
@@ -242,7 +413,8 @@ function testOutboundRunnerKeepsCursorWhenDeliveryFails(): void
         new FakeRouterClient(),
         new ThrowingTelegramClient(),
         new InMemoryTenantMap(['100' => 'user@server']),
-        $status_store
+        $status_store,
+        new InMemoryIgnoreStateStore()
     );
     $cursor_store = new InMemoryCursorStore();
     $router = new SequencedOutboundRouterClient([
@@ -423,6 +595,22 @@ final class InMemoryStatusStateStore implements StatusStateStoreInterface
     }
 }
 
+final class InMemoryIgnoreStateStore implements IgnoreStateStoreInterface
+{
+    /** @var array<string, bool> */
+    private array $items = [];
+
+    public function isIgnored(string $scope): bool
+    {
+        return $this->items[$scope] ?? false;
+    }
+
+    public function setIgnored(string $scope, bool $ignored): void
+    {
+        $this->items[$scope] = $ignored;
+    }
+}
+
 final class InMemoryCursorStore implements CursorStoreInterface
 {
     public int $router_after_id = 0;
@@ -464,6 +652,9 @@ testStatusCommandDefaultsToEnabled();
 testUnknownChatReplySkipsRouterIngress();
 testCommentarySendsTypingAfterMessage();
 testStatusEventCreatesInstructionAndStatusMessage();
+testIgnoreCommandSuppressesForumThreadIngressOnly();
+testUnignoreCommandRestoresChatIngress();
+testNoteCommandStaysLocalAndSilent();
 testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery();
 testOutboundRunnerKeepsCursorWhenDeliveryFails();
 
