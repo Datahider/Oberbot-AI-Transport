@@ -1,0 +1,18 @@
+[Unit]
+Description=Codex Multitenant Telegram Transport
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pio-bots/bin/bots/Codex-Multitenant-Telegram
+Environment=HOME=/home/pio-bots
+Environment=COMPOSER_HOME=/home/pio-bots/.composer
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/bin/env php /home/pio-bots/bin/bots/Codex-Multitenant-Telegram/bin/telegram-transport.php /home/pio-bots/bin/bots/Codex-Multitenant-Telegram/etc/config.php
+Restart=always
+RestartSec=2
+KillMode=control-group
+
+[Install]
+WantedBy=default.target

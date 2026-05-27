@@ -1,0 +1,186 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CodexMultitenant\TransportTelegram;
+
+use RuntimeException;
+
+final class TelegramApiClient implements TelegramClientInterface
+{
+    private string $base_url;
+
+    public function __construct(
+        string $bot_token,
+        string $base_url = 'https://api.telegram.org',
+        string $endpoint_prefix = 'bot'
+    ) {
+        $token = trim($bot_token);
+        if ($token === '') {
+            throw new RuntimeException('Telegram bot token is required');
+        }
+
+        $base_url = rtrim(trim($base_url), '/');
+        if ($base_url === '') {
+            throw new RuntimeException('Telegram API base URL is required');
+        }
+
+        $endpoint_prefix = trim($endpoint_prefix, '/');
+        $path = $base_url . '/';
+        if ($endpoint_prefix !== '') {
+            $path .= $endpoint_prefix;
+        }
+
+        $this->base_url = $path . $token . '/';
+    }
+
+    public function sendMessage(
+        int|string $chat_id,
+        string $text,
+        ?int $reply_to_message_id = null,
+        ?string $parse_mode = null,
+        bool $disable_notification = false,
+        ?int $message_thread_id = null
+    ): array {
+        $text = trim($text);
+        if ($text === '') {
+            throw new RuntimeException('Telegram outbound message text cannot be empty');
+        }
+
+        $payload = [
+            'chat_id' => $chat_id,
+            'text' => $text,
+            'disable_notification' => $disable_notification,
+        ];
+
+        if ($parse_mode !== null && trim($parse_mode) !== '') {
+            $payload['parse_mode'] = trim($parse_mode);
+        }
+
+        if ($message_thread_id !== null && $message_thread_id > 0) {
+            $payload['message_thread_id'] = $message_thread_id;
+        }
+
+        if ($reply_to_message_id !== null && $reply_to_message_id > 0) {
+            $payload['reply_parameters'] = [
+                'message_id' => $reply_to_message_id,
+            ];
+        }
+
+        return $this->request('sendMessage', $payload);
+    }
+
+    public function editMessageText(
+        int|string $chat_id,
+        int $message_id,
+        string $text,
+        ?string $parse_mode = null,
+        ?int $message_thread_id = null
+    ): void {
+        $payload = [
+            'chat_id' => $chat_id,
+            'message_id' => $message_id,
+            'text' => $text,
+        ];
+
+        if ($parse_mode !== null && trim($parse_mode) !== '') {
+            $payload['parse_mode'] = trim($parse_mode);
+        }
+
+        if ($message_thread_id !== null && $message_thread_id > 0) {
+            $payload['message_thread_id'] = $message_thread_id;
+        }
+
+        $this->request('editMessageText', $payload);
+    }
+
+    public function sendChatAction(
+        int|string $chat_id,
+        string $action = 'typing',
+        ?int $message_thread_id = null
+    ): void {
+        $payload = [
+            'chat_id' => $chat_id,
+            'action' => trim($action) !== '' ? trim($action) : 'typing',
+        ];
+
+        if ($message_thread_id !== null && $message_thread_id > 0) {
+            $payload['message_thread_id'] = $message_thread_id;
+        }
+
+        $this->request('sendChatAction', $payload);
+    }
+
+    public function getUpdates(?int $offset, int $timeout, int $limit = 100): array
+    {
+        $payload = [
+            'timeout' => max(0, min(50, $timeout)),
+            'limit' => max(1, min(100, $limit)),
+            'allowed_updates' => ['message'],
+        ];
+
+        if ($offset !== null && $offset > 0) {
+            $payload['offset'] = $offset;
+        }
+
+        $result = $this->request('getUpdates', $payload);
+        $updates = $result['result'] ?? [];
+
+        return is_array($updates) ? array_values(array_filter($updates, 'is_array')) : [];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    private function request(string $method, array $payload = []): array
+    {
+        $ch = curl_init($this->base_url . $method);
+        if ($ch === false) {
+            throw new RuntimeException('Cannot initialize Telegram API request');
+        }
+
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new RuntimeException('Cannot encode Telegram API payload');
+        }
+
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+            ],
+            CURLOPT_POSTFIELDS => $json,
+            CURLOPT_TIMEOUT => max(10, (($payload['timeout'] ?? 0) + 10)),
+            CURLOPT_CONNECTTIMEOUT => 10,
+        ]);
+
+        $raw = curl_exec($ch);
+        if ($raw === false) {
+            $error = curl_error($ch);
+            curl_close($ch);
+            throw new RuntimeException('Telegram API request failed: ' . $error);
+        }
+
+        $status_code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+
+        $response = json_decode($raw, true);
+        if (!is_array($response)) {
+            throw new RuntimeException('Telegram API returned invalid JSON');
+        }
+
+        if ($status_code >= 400) {
+            $description = (string) ($response['description'] ?? 'HTTP ' . $status_code);
+            throw new RuntimeException('Telegram API request failed: ' . $description);
+        }
+
+        if (($response['ok'] ?? false) !== true) {
+            $description = (string) ($response['description'] ?? 'request failed');
+            throw new RuntimeException('Telegram API request failed: ' . $description);
+        }
+
+        return $response;
+    }
+}

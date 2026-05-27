@@ -1,0 +1,167 @@
+# Telegram Transport Contract
+
+## Service Role
+- `Transport-Telegram` — transport gateway для Telegram Bot API поверх `Router`.
+- `Transport-Telegram` общается только с:
+  - Telegram Bot API
+  - `Router` transport endpoints
+- `Transport-Telegram` не читает локальные очереди `Core` и не использует core endpoint'ы.
+
+## Router Boundary
+- Канонический контракт `Router` задаётся `../Router/CONTRACT.md`.
+- `Transport-Telegram` использует только:
+  - `POST /api/v1/transport/ingress`
+  - `GET /api/v1/transport/outbound`
+- Любая HTTP/auth/JSON ошибка от `Router` считается operational failure и должна приводить к исключению без fallback.
+
+## Telegram Boundary
+- Канонический operational mode: Telegram long polling через `getUpdates`.
+- На первом этапе поддерживаются только входящие `message.text`.
+- Неподдерживаемые update payload'ы игнорируются без fallback-ответов пользователю.
+
+## Runtime Config Contract
+- Канонический entrypoint: `bin/telegram-transport.php`
+- Канонический runtime config path: `config/config.php`
+- `config/config.php` должен возвращать массив с секциями:
+  - `router.base_url`
+  - `router.transport_token`
+  - `telegram.bot_token`
+  - `telegram.base_url`
+  - `telegram.endpoint_prefix`
+  - `transport.transport_instance_id`
+  - `transport.outbound_poll_interval_ms`
+  - `transport.telegram_poll_timeout_seconds`
+  - `transport.unknown_chat_text`
+  - `transport.status_instruction_text`
+  - `transport.idle_status_text`
+  - `db.host`
+  - `db.user`
+  - `db.pass`
+  - `db.name`
+  - `db.prefix`
+
+## Database Contract
+- Transport хранит собственную MariaDB-схему через `losthost/db`.
+- На старте transport обязан вызвать `initDataStructure()` для всех своих таблиц.
+- Минимальные таблицы:
+  - привязка `chat_id -> tenant`
+  - status state по `opaque`
+  - long polling state процесса
+
+## Session Identity Contract
+- `opaque` передаётся в `Router` как opaque string без transport-side интерпретации со стороны `Router`.
+- `Transport-Telegram` сам формирует `opaque` из Telegram target:
+  - если `thread_id` отсутствует: `<chat_id>`
+  - если `thread_id` присутствует: `<chat_id>:<thread_id>`
+- Для разных thread одного `chat_id` используются разные `opaque`, но один и тот же tenant.
+
+## Ingress Contract
+- Каждое поддержанное входящее `message.text` нормализуется в ingress event:
+
+```json
+{
+  "tenant": "user@server",
+  "opaque": "-100123:77",
+  "kind": "message",
+  "text": "user input",
+  "attachments": [],
+  "meta": {
+    "transport": "telegram",
+    "chat_id": -100123,
+    "thread_id": 77,
+    "message_id": 501
+  }
+}
+```
+
+### Ingress Rules
+- `tenant` определяется только по `chat_id` через локальную БД.
+- Если для `chat_id` нет tenant mapping, transport отвечает текстом из `transport.unknown_chat_text` и не вызывает `Router`.
+- `kind` на первом этапе всегда `message`.
+- `attachments` на первом этапе всегда пустой массив.
+- Если `Router` возвращает `accepted=false` и `action.type=reply_text`, transport отправляет `action.text` в Telegram как обычное сообщение.
+
+## Local Commands
+- `Transport-Telegram` обрабатывает локально только `/status`.
+- Поддержанные формы:
+  - `/status`
+  - `/status on`
+  - `/status off`
+- `/status` без аргумента показывает текущее состояние status-message и краткую справку.
+- Неизвестные slash-команды не являются transport-local command и должны уходить в `Router` как обычный текст.
+
+## Status Message Contract
+- Для каждого `opaque` status-message включён по умолчанию.
+- Status state хранится в БД транспорта.
+- `kind=status` из outbound:
+  - если status-message существует, transport редактирует его
+  - если status-message отсутствует или удалён, transport сначала отправляет `transport.status_instruction_text`, затем создаёт новое service-message
+- `/status off` выключает status-message для текущего `opaque`.
+- `/status on` включает status-message для текущего `opaque` и немедленно обеспечивает наличие актуального service-message.
+
+## Outbound Contract
+- Transport читает outbound только через `GET /api/v1/transport/outbound`.
+- Cursor `after_id` хранится persistently в БД транспорта.
+- Для каждого outbound event transport дополнительно фильтрует по точному `opaque`.
+
+### Outbound Rendering
+- `kind=final`:
+  - markdown от core конвертируется в Telegram HTML через `fastvolt/markdown`
+  - затем применяется существующая процедура очистки несовместимых тегов
+  - transport добавляет префикс `✅ `
+- `kind=commentary`:
+  - markdown конвертируется в Telegram HTML через тот же renderer
+  - весь результат оборачивается в `<i>...</i>`
+  - сразу после отправки transport обязан выполнить `sendChatAction(typing)`
+- `kind=status`:
+  - обновляет service-message по контракту выше
+- `kind=heartbeat`:
+  - не отправляет текст
+  - вызывает только `sendChatAction(typing)`
+
+## Telegram HTML Contract
+- Parse mode для `final`, `commentary`, `status` — `HTML`.
+- Собственные markdown/html-converter'ы писать запрещено.
+- Для markdown->HTML используется `fastvolt/markdown`.
+- Процедура очистки несовместимых тегов переносится из старого reference-transport без отсебятины.
+
+## Process Loop
+- Один процесс transport instance:
+  - делает Telegram long polling
+  - отправляет ingress в `Router`
+  - делает long polling `Router` outbound
+  - отправляет outbound в нужные Telegram chats/topics
+- Один transport process обслуживает все чаты данного `transport_instance_id`.
+
+## Example Config
+
+```php
+<?php
+
+return [
+    'router' => [
+        'base_url' => 'https://router.example',
+        'transport_token' => 'router-transport-token',
+    ],
+    'telegram' => [
+        'bot_token' => 'telegram-bot-token',
+        'base_url' => 'https://api.telegram.org',
+        'endpoint_prefix' => 'bot',
+    ],
+    'transport' => [
+        'transport_instance_id' => 'telegram-main',
+        'outbound_poll_interval_ms' => 250,
+        'telegram_poll_timeout_seconds' => 20,
+        'unknown_chat_text' => 'Этот чат не привязан к tenant.',
+        'status_instruction_text' => 'Закрепите следующее сообщение для отображения текущего статуса.',
+        'idle_status_text' => 'Свободен',
+    ],
+    'db' => [
+        'host' => '127.0.0.1',
+        'user' => 'db-user',
+        'pass' => 'db-pass',
+        'name' => 'telegram_transport',
+        'prefix' => 'ct_',
+    ],
+];
+```

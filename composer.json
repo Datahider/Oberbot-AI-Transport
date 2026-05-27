@@ -1,0 +1,15 @@
+{
+    "name": "codex-multitenant/transport-telegram",
+    "description": "Telegram transport gateway for Codex Multitenant Router",
+    "type": "project",
+    "require": {
+        "php": "^8.2",
+        "fastvolt/markdown": "v0.3.0.x-dev",
+        "losthost/db": "^3.5@beta"
+    },
+    "autoload": {
+        "psr-4": {
+            "CodexMultitenant\\TransportTelegram\\": "src/"
+        }
+    }
+}
