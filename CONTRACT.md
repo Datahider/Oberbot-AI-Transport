@@ -120,6 +120,10 @@
   - `/unignore` — `resume ingress for this chat/topic`
   - `/note` — `store note locally without forwarding`
   - `/done` — `close current forum topic`
+  - `/stop` — `forward stop request to upstream stack`
+  - `/reset` — `forward reset request to upstream stack`
+  - `/session` — `forward session request to upstream stack`
+- `/stop`, `/reset`, `/session` не являются transport-local command и публикуются только для bot menu.
 - Ошибка `setMyCommands` считается operational failure и должна прерывать запуск без fallback.
 
 ## Ignore State Contract

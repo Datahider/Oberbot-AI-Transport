@@ -32,6 +32,18 @@ final class TelegramBotCommandCatalog
                 'command' => 'done',
                 'description' => 'close current forum topic',
             ],
+            [
+                'command' => 'stop',
+                'description' => 'forward stop request to upstream stack',
+            ],
+            [
+                'command' => 'reset',
+                'description' => 'forward reset request to upstream stack',
+            ],
+            [
+                'command' => 'session',
+                'description' => 'forward session request to upstream stack',
+            ],
         ];
     }
 }
