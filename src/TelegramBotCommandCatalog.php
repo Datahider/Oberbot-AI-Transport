@@ -14,35 +14,35 @@ final class TelegramBotCommandCatalog
         return [
             [
                 'command' => 'status',
-                'description' => 'show or toggle status message',
+                'description' => 'Показать или переключить статус',
             ],
             [
                 'command' => 'ignore',
-                'description' => 'suppress ingress for this chat/topic',
+                'description' => 'Игнорировать этот чат или топик',
             ],
             [
                 'command' => 'unignore',
-                'description' => 'resume ingress for this chat/topic',
+                'description' => 'Снять игнор с этого чата или топика',
             ],
             [
                 'command' => 'note',
-                'description' => 'store note locally without forwarding',
+                'description' => 'Сохранить заметку без отправки дальше',
             ],
             [
                 'command' => 'done',
-                'description' => 'close current forum topic',
+                'description' => 'Закрыть текущий топик форума',
             ],
             [
                 'command' => 'stop',
-                'description' => 'interrupt current agent turn',
+                'description' => 'Прервать текущий ход агента',
             ],
             [
                 'command' => 'reset',
-                'description' => 'reset codex session for current dialog',
+                'description' => 'Сбросить codex session для текущего диалога',
             ],
             [
                 'command' => 'session',
-                'description' => 'inspect or assign codex session for current dialog',
+                'description' => 'Проверить или задать codex session для текущего диалога',
             ],
         ];
     }

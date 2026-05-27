@@ -115,14 +115,14 @@
 ## Telegram Bot Commands Menu Contract
 - При каждом старте ingress-процесса transport обязан вызывать Telegram Bot API `setMyCommands` до первого `getUpdates`.
 - Transport обязан публиковать ровно эти команды в bot menu:
-  - `/status` — `show or toggle status message`
-  - `/ignore` — `suppress ingress for this chat/topic`
-  - `/unignore` — `resume ingress for this chat/topic`
-  - `/note` — `store note locally without forwarding`
-  - `/done` — `close current forum topic`
-  - `/stop` — `interrupt current agent turn`
-  - `/reset` — `reset codex session for current dialog`
-  - `/session` — `inspect or assign codex session for current dialog`
+  - `/status` — `Показать или переключить статус`
+  - `/ignore` — `Игнорировать этот чат или топик`
+  - `/unignore` — `Снять игнор с этого чата или топика`
+  - `/note` — `Сохранить заметку без отправки дальше`
+  - `/done` — `Закрыть текущий топик форума`
+  - `/stop` — `Прервать текущий ход агента`
+  - `/reset` — `Сбросить codex session для текущего диалога`
+  - `/session` — `Проверить или задать codex session для текущего диалога`
 - `/stop`, `/reset`, `/session` не являются transport-local command и публикуются только для bot menu.
 - Ошибка `setMyCommands` считается operational failure и должна прерывать запуск без fallback.
 
