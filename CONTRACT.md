@@ -153,10 +153,12 @@
   - markdown от core конвертируется в Telegram HTML через `fastvolt/markdown`
   - затем применяется существующая процедура очистки несовместимых тегов
   - transport добавляет префикс `✅ `
+  - если итоговый текст не помещается в Telegram message limit, transport вместо сообщения отправляет файл с полным текстом и caption `Ответ получился слишком длинным, поэтому отправил его файлом.`
 - `kind=commentary`:
   - markdown конвертируется в Telegram HTML через тот же renderer
   - весь результат оборачивается в `<i>...</i>`
   - сразу после отправки transport обязан выполнить `sendChatAction(typing)`
+  - если итоговый текст не помещается в Telegram message limit, transport вместо сообщения отправляет файл с полным текстом и caption `Ответ получился слишком длинным, поэтому отправил его файлом.`
 - `kind=status`:
   - обновляет service-message по контракту выше
 - `kind=heartbeat`:

@@ -8,6 +8,8 @@ use RuntimeException;
 
 final class TelegramApiClient implements TelegramClientInterface
 {
+    private const TELEGRAM_TEXT_LIMIT = 4096;
+
     private string $base_url;
 
     public function __construct(
@@ -90,6 +92,38 @@ final class TelegramApiClient implements TelegramClientInterface
         }
 
         return $this->request('sendMessage', $payload);
+    }
+
+    public function sendDocument(
+        int|string $chat_id,
+        string $file_path,
+        ?string $caption = null,
+        ?string $parse_mode = null,
+        bool $disable_notification = false,
+        ?int $message_thread_id = null
+    ): array {
+        $file_path = trim($file_path);
+        if ($file_path === '' || !is_file($file_path)) {
+            throw new RuntimeException('Telegram outbound document file is missing');
+        }
+
+        $payload = [
+            'chat_id' => $chat_id,
+            'caption' => $caption !== null ? trim($caption) : null,
+            'disable_notification' => $disable_notification,
+        ];
+
+        if ($parse_mode !== null && trim($parse_mode) !== '') {
+            $payload['parse_mode'] = trim($parse_mode);
+        }
+
+        if ($message_thread_id !== null && $message_thread_id > 0) {
+            $payload['message_thread_id'] = $message_thread_id;
+        }
+
+        return $this->multipartRequest('sendDocument', $payload, [
+            'document' => new \CURLFile($file_path, 'text/plain', basename($file_path)),
+        ]);
     }
 
     public function editMessageText(
@@ -205,6 +239,58 @@ final class TelegramApiClient implements TelegramClientInterface
             ],
             CURLOPT_POSTFIELDS => $json,
             CURLOPT_TIMEOUT => max(10, (($payload['timeout'] ?? 0) + 10)),
+            CURLOPT_CONNECTTIMEOUT => 10,
+        ]);
+
+        $raw = curl_exec($ch);
+        if ($raw === false) {
+            $error = curl_error($ch);
+            curl_close($ch);
+            throw new RuntimeException('Telegram API request failed: ' . $error);
+        }
+
+        $status_code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+
+        $response = json_decode($raw, true);
+        if (!is_array($response)) {
+            throw new RuntimeException('Telegram API returned invalid JSON');
+        }
+
+        if ($status_code >= 400) {
+            $description = (string) ($response['description'] ?? 'HTTP ' . $status_code);
+            throw new RuntimeException('Telegram API request failed: ' . $description);
+        }
+
+        if (($response['ok'] ?? false) !== true) {
+            $description = (string) ($response['description'] ?? 'request failed');
+            throw new RuntimeException('Telegram API request failed: ' . $description);
+        }
+
+        return $response;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, mixed> $files
+     * @return array<string, mixed>
+     */
+    private function multipartRequest(string $method, array $payload, array $files): array
+    {
+        $ch = curl_init($this->base_url . $method);
+        if ($ch === false) {
+            throw new RuntimeException('Cannot initialize Telegram API request');
+        }
+
+        foreach ($files as $key => $value) {
+            $payload[$key] = $value;
+        }
+
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_TIMEOUT => 30,
             CURLOPT_CONNECTTIMEOUT => 10,
         ]);
 

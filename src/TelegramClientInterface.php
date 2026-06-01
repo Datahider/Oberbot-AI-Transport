@@ -23,6 +23,18 @@ interface TelegramClientInterface
         ?int $message_thread_id = null
     ): array;
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function sendDocument(
+        int|string $chat_id,
+        string $file_path,
+        ?string $caption = null,
+        ?string $parse_mode = null,
+        bool $disable_notification = false,
+        ?int $message_thread_id = null
+    ): array;
+
     public function editMessageText(
         int|string $chat_id,
         int $message_id,

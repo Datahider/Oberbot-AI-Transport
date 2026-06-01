@@ -9,6 +9,9 @@ use Throwable;
 
 final class TelegramTransport
 {
+    private const TELEGRAM_TEXT_LIMIT = 4096;
+    private const LONG_MESSAGE_CAPTION = 'Ответ получился слишком длинным, поэтому отправил его файлом.';
+
     private readonly TelegramUpdateNormalizer $normalizer;
     private readonly TelegramTextRenderer $renderer;
 
@@ -194,7 +197,7 @@ final class TelegramTransport
         if ($event->kind === 'commentary') {
             $text = $this->renderer->renderCommentary($event->text);
             if ($text !== '') {
-                $result = $this->telegram->sendMessage($chat_id, $text, null, 'HTML', true, $thread_id);
+                $result = $this->sendRenderedOutbound($chat_id, $thread_id, $text, $event->text, true);
                 RuntimeLog::info('Telegram commentary sent', [
                     'event_id' => $event->event_id,
                     'chat_id' => $chat_id,
@@ -217,7 +220,7 @@ final class TelegramTransport
             return;
         }
 
-        $result = $this->telegram->sendMessage($chat_id, $text, null, 'HTML', false, $thread_id);
+        $result = $this->sendRenderedOutbound($chat_id, $thread_id, $text, $event->text, false);
         RuntimeLog::info('Telegram final message sent', [
             'event_id' => $event->event_id,
             'chat_id' => $chat_id,
@@ -454,5 +457,47 @@ final class TelegramTransport
         $result['text'] = $text;
 
         return $result;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sendRenderedOutbound(
+        string $chat_id,
+        ?int $thread_id,
+        string $rendered_text,
+        string $document_text,
+        bool $disable_notification
+    ): array {
+        if (mb_strlen($rendered_text) <= self::TELEGRAM_TEXT_LIMIT) {
+            return $this->telegram->sendMessage($chat_id, $rendered_text, null, 'HTML', $disable_notification, $thread_id);
+        }
+
+        $file_path = $this->writeLongMessageFile($document_text);
+
+        try {
+            return $this->telegram->sendDocument(
+                $chat_id,
+                $file_path,
+                self::LONG_MESSAGE_CAPTION,
+                null,
+                $disable_notification,
+                $thread_id
+            );
+        } finally {
+            if (is_file($file_path)) {
+                @unlink($file_path);
+            }
+        }
+    }
+
+    private function writeLongMessageFile(string $text): string
+    {
+        $path = rtrim(sys_get_temp_dir(), '/') . '/telegram-outbound-' . bin2hex(random_bytes(8)) . '.txt';
+        if (file_put_contents($path, $text) === false) {
+            throw new RuntimeException('Cannot write long outbound message file');
+        }
+
+        return $path;
     }
 }

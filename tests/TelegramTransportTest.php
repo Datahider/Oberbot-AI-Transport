@@ -178,6 +178,33 @@ function testCommentarySendsTypingAfterMessage(): void
     assertSame('typing', $telegram->chat_actions[0]['action'] ?? null, 'typing after commentary');
 }
 
+function testLongCommentaryFallsBackToDocumentWithCaption(): void
+{
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        new FakeRouterClient(),
+        $telegram,
+        new InMemoryTenantMap(['100' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+
+    $transport->deliverOutboundEvent(new OutboundEvent(
+        event_id: 141,
+        opaque: '100',
+        kind: 'commentary',
+        text: str_repeat('a', 5000),
+        attachments: [],
+        meta: []
+    ));
+
+    assertSame([], $telegram->sent_messages, 'long commentary not sent as plain message');
+    assertSame('Ответ получился слишком длинным, поэтому отправил его файлом.', $telegram->sent_documents[0]['caption'] ?? null, 'long commentary caption');
+    assertSame(str_repeat('a', 5000), $telegram->sent_documents[0]['content'] ?? null, 'long commentary document content');
+    assertSame('typing', $telegram->chat_actions[0]['action'] ?? null, 'typing after long commentary document');
+}
+
 function testIngressRunnerRegistersBotCommandsBeforePolling(): void
 {
     $telegram = new FakeTelegramClient();
@@ -508,6 +535,32 @@ function testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery(): void
     assertSame('✅ done', $telegram->sent_messages[0]['text'] ?? null, 'delivered final text');
 }
 
+function testLongFinalFallsBackToDocumentWithCaption(): void
+{
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        new FakeRouterClient(),
+        $telegram,
+        new InMemoryTenantMap(['100' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+
+    $transport->deliverOutboundEvent(new OutboundEvent(
+        event_id: 61,
+        opaque: '100',
+        kind: 'final',
+        text: str_repeat('b', 5000),
+        attachments: [],
+        meta: []
+    ));
+
+    assertSame([], $telegram->sent_messages, 'long final not sent as plain message');
+    assertSame('Ответ получился слишком длинным, поэтому отправил его файлом.', $telegram->sent_documents[0]['caption'] ?? null, 'long final caption');
+    assertSame(str_repeat('b', 5000), $telegram->sent_documents[0]['content'] ?? null, 'long final document content');
+}
+
 function testOutboundRunnerKeepsCursorWhenDeliveryFails(): void
 {
     $status_store = new InMemoryStatusStateStore();
@@ -617,6 +670,9 @@ class FakeTelegramClient implements TelegramClientInterface
     public array $sent_messages = [];
 
     /** @var list<array<string, mixed>> */
+    public array $sent_documents = [];
+
+    /** @var list<array<string, mixed>> */
     public array $edited_messages = [];
 
     /** @var list<array<string, mixed>> */
@@ -646,6 +702,37 @@ class FakeTelegramClient implements TelegramClientInterface
             'chat_id' => $chat_id,
             'text' => $text,
             'reply_to_message_id' => $reply_to_message_id,
+            'parse_mode' => $parse_mode,
+            'disable_notification' => $disable_notification,
+            'message_thread_id' => $message_thread_id,
+            'message_id' => $message_id,
+        ];
+
+        return [
+            'ok' => true,
+            'result' => [
+                'message_id' => $message_id,
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function sendDocument(
+        int|string $chat_id,
+        string $file_path,
+        ?string $caption = null,
+        ?string $parse_mode = null,
+        bool $disable_notification = false,
+        ?int $message_thread_id = null
+    ): array {
+        $message_id = count($this->sent_documents) + 2000;
+        $this->sent_documents[] = [
+            'chat_id' => $chat_id,
+            'file_path' => $file_path,
+            'content' => is_file($file_path) ? (string) file_get_contents($file_path) : null,
+            'caption' => $caption,
             'parse_mode' => $parse_mode,
             'disable_notification' => $disable_notification,
             'message_thread_id' => $message_thread_id,
@@ -788,6 +875,11 @@ final class ThrowingTelegramClient extends FakeTelegramClient
     {
         throw new RuntimeException('delivery failed');
     }
+
+    public function sendDocument(int|string $chat_id, string $file_path, ?string $caption = null, ?string $parse_mode = null, bool $disable_notification = false, ?int $message_thread_id = null): array
+    {
+        throw new RuntimeException('delivery failed');
+    }
 }
 
 testConfigRequiresTelegramToken();
@@ -796,6 +888,7 @@ testNormalizerRejectsUnsupportedUpdate();
 testStatusCommandDefaultsToEnabled();
 testUnknownChatReplySkipsRouterIngress();
 testCommentarySendsTypingAfterMessage();
+testLongCommentaryFallsBackToDocumentWithCaption();
 testIngressRunnerRegistersBotCommandsBeforePolling();
 testStatusEventCreatesInstructionAndStatusMessage();
 testIgnoreCommandSuppressesForumThreadIngressOnly();
@@ -804,6 +897,7 @@ testNoteCommandStaysLocalAndSilent();
 testDoneCommandRejectsNonThreadChat();
 testDoneCommandEditsIconAndClosesForumTopic();
 testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery();
+testLongFinalFallsBackToDocumentWithCaption();
 testOutboundRunnerKeepsCursorWhenDeliveryFails();
 
 fwrite(STDOUT, "TelegramTransport tests: OK\n");
