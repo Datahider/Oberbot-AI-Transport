@@ -15,6 +15,20 @@ final class RuntimeFactory
         DatabaseBootstrap::connect($config);
         DatabaseBootstrap::initDataStructure();
 
+        return new MainRunner(
+            $config,
+            dirname(__DIR__),
+            __DIR__ . '/bootstrap.php',
+            $config_path
+        );
+    }
+
+    public static function createIngressRunner(string $config_path): IngressRunner
+    {
+        $config = TelegramTransportConfig::fromConfigPath($config_path);
+        DatabaseBootstrap::connect($config);
+        DatabaseBootstrap::initDataStructure();
+
         $router = new ApiClient(
             $config->router_base_url,
             $config->router_token,
@@ -27,26 +41,18 @@ final class RuntimeFactory
             $config->telegram_endpoint_prefix
         );
 
-        $transport = new TelegramTransport(
+        return new IngressRunner(
             $config,
-            $router,
             $telegram,
-            new DbTenantMap(),
-            new DbStatusStateStore(),
-            new DbIgnoreStateStore()
-        );
-
-        return new MainRunner(
-            $config,
-            new IngressRunner(
+            new TelegramTransport(
                 $config,
+                $router,
                 $telegram,
-                $transport,
-                new DbCursorStore()
+                new DbTenantMap(),
+                new DbStatusStateStore(),
+                new DbIgnoreStateStore()
             ),
-            dirname(__DIR__),
-            __DIR__ . '/bootstrap.php',
-            $config_path
+            new DbCursorStore()
         );
     }
 

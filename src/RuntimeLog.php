@@ -6,6 +6,9 @@ namespace CodexMultitenant\TransportTelegram;
 
 final class RuntimeLog
 {
+    /** @var null|callable(array<string, mixed>): void */
+    private static $observer = null;
+
     /**
      * @param array<string, mixed> $context
      */
@@ -23,6 +26,14 @@ final class RuntimeLog
     }
 
     /**
+     * @param null|callable(array<string, mixed>): void $observer
+     */
+    public static function setObserver(?callable $observer): void
+    {
+        self::$observer = $observer;
+    }
+
+    /**
      * @param array<string, mixed> $context
      */
     private static function write(string $level, string $message, array $context): void
@@ -32,6 +43,10 @@ final class RuntimeLog
             'message' => $message,
             'context' => $context,
         ];
+
+        if (self::$observer !== null) {
+            (self::$observer)($payload);
+        }
 
         $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $line = $encoded !== false ? $encoded : $level . ' ' . $message;
