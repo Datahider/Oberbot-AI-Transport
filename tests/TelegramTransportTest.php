@@ -484,6 +484,39 @@ function testDoneCommandEditsIconAndClosesForumTopic(): void
     ], $telegram->closed_topics[0] ?? null, 'done close topic');
 }
 
+function testDoneCommandReportsTelegramPermissionFailureWithoutCrash(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $telegram->edit_forum_topic_exception = new RuntimeException('Forbidden: bot is not an admin');
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router,
+        $telegram,
+        new InMemoryTenantMap(['-100123' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+
+    $result = $transport->handleIncomingUpdate([
+        'update_id' => 26,
+        'message' => [
+            'message_id' => 920,
+            'message_thread_id' => 77,
+            'text' => '/done',
+            'chat' => [
+                'id' => -100123,
+                'type' => 'supergroup',
+            ],
+        ],
+    ]);
+
+    assertSame(true, $result['accepted'], 'done permission failure accepted');
+    assertSame('Команда /done недоступна: у бота нет прав администратора для управления темой.', $result['messages'][0]['text'] ?? null, 'done permission failure diagnostic');
+    assertSame([], $router->ingress_payloads, 'done permission failure not forwarded');
+    assertSame([], $telegram->closed_topics, 'done permission failure no topic close');
+}
+
     $transport->deliverOutboundEvent(new OutboundEvent(
         event_id: 15,
         opaque: '100',
@@ -684,6 +717,7 @@ class FakeTelegramClient implements TelegramClientInterface
     /** @var list<array<string, mixed>> */
     public array $closed_topics = [];
 
+    public ?RuntimeException $edit_forum_topic_exception = null;
     public bool $throw_on_get_updates = false;
     public int $get_updates_calls = 0;
 
@@ -769,6 +803,10 @@ class FakeTelegramClient implements TelegramClientInterface
 
     public function editForumTopic(int|string $chat_id, int $message_thread_id, ?string $name = null, ?string $icon_custom_emoji_id = null): void
     {
+        if ($this->edit_forum_topic_exception !== null) {
+            throw $this->edit_forum_topic_exception;
+        }
+
         $this->edited_topics[] = [
             'chat_id' => (string) $chat_id,
             'message_thread_id' => $message_thread_id,
@@ -896,6 +934,7 @@ testUnignoreCommandRestoresChatIngress();
 testNoteCommandStaysLocalAndSilent();
 testDoneCommandRejectsNonThreadChat();
 testDoneCommandEditsIconAndClosesForumTopic();
+testDoneCommandReportsTelegramPermissionFailureWithoutCrash();
 testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery();
 testLongFinalFallsBackToDocumentWithCaption();
 testOutboundRunnerKeepsCursorWhenDeliveryFails();

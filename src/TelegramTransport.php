@@ -410,8 +410,31 @@ final class TelegramTransport
             ];
         }
 
-        $this->telegram->editForumTopic($message->chat_id, $message->thread_id, null, $icon_custom_emoji_id);
-        $this->telegram->closeForumTopic($message->chat_id, $message->thread_id);
+        try {
+            $this->telegram->editForumTopic($message->chat_id, $message->thread_id, null, $icon_custom_emoji_id);
+            $this->telegram->closeForumTopic($message->chat_id, $message->thread_id);
+        } catch (\Throwable $e) {
+            RuntimeLog::error('Done command failed to manage forum topic', [
+                'chat_id' => $message->chat_id,
+                'opaque' => $message->opaque,
+                'thread_id' => $message->thread_id,
+                'error' => $e->getMessage(),
+                'exception_class' => $e::class,
+            ]);
+
+            return [
+                'accepted' => true,
+                'messages' => [
+                    $this->sendTextReply(
+                        $message,
+                        'Команда /done недоступна: у бота нет прав администратора для управления темой.',
+                        null,
+                        true
+                    ),
+                ],
+            ];
+        }
+
         RuntimeLog::info('Forum topic marked done and closed', [
             'chat_id' => $message->chat_id,
             'opaque' => $message->opaque,
