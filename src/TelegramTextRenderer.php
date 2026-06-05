@@ -54,6 +54,7 @@ final class TelegramTextRenderer
     private function replaceUnsupported(string $html): string
     {
         $html = $this->processOrderedLists($html);
+        $html = $this->processTables($html);
 
         $html = str_replace('<p>', "\n", $html);
         $html = str_replace('</p>', '', $html);
@@ -89,6 +90,38 @@ final class TelegramTextRenderer
         $html = (string) preg_replace('/<h6>(.*?)<\/h6>/i', '<u>$1</u>', $html);
 
         return ltrim($html);
+    }
+
+    private function processTables(string $html): string
+    {
+        return (string) preg_replace_callback('/<table\b[^>]*>(.*?)<\/table>/is', static function (array $tableMatches): string {
+            $rows = [];
+
+            preg_match_all('/<tr\b[^>]*>(.*?)<\/tr>/is', $tableMatches[1] ?? '', $rowMatches);
+
+            foreach ($rowMatches[1] ?? [] as $rowHtml) {
+                preg_match_all('/<(td|th)\b[^>]*>(.*?)<\/\1>/is', $rowHtml, $cellMatches);
+                $cells = array_map(
+                    static function (string $cellHtml): string {
+                        $text = strip_tags($cellHtml);
+                        $text = html_entity_decode($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+                    },
+                    $cellMatches[2] ?? []
+                );
+
+                $cells = array_values(array_filter($cells, static fn (string $cell): bool => $cell !== ''));
+                if ($cells !== []) {
+                    $rows[] = implode(' | ', $cells);
+                }
+            }
+
+            if ($rows === []) {
+                return '';
+            }
+
+            return "\n" . implode("\n", $rows) . "\n";
+        }, $html);
     }
 
     private function processOrderedLists(string $html): string

@@ -13,6 +13,7 @@ use CodexMultitenant\TransportTelegram\StatusState;
 use CodexMultitenant\TransportTelegram\StatusStateStoreInterface;
 use CodexMultitenant\TransportTelegram\TelegramBotCommandCatalog;
 use CodexMultitenant\TransportTelegram\TelegramClientInterface;
+use CodexMultitenant\TransportTelegram\TelegramTextRenderer;
 use CodexMultitenant\TransportTelegram\TelegramTransport;
 use CodexMultitenant\TransportTelegram\TelegramTransportConfig;
 use CodexMultitenant\TransportTelegram\TelegramUpdateNormalizer;
@@ -203,6 +204,23 @@ function testLongCommentaryFallsBackToDocumentWithCaption(): void
     assertSame('Ответ получился слишком длинным, поэтому отправил его файлом.', $telegram->sent_documents[0]['caption'] ?? null, 'long commentary caption');
     assertSame(str_repeat('a', 5000), $telegram->sent_documents[0]['content'] ?? null, 'long commentary document content');
     assertSame('typing', $telegram->chat_actions[0]['action'] ?? null, 'typing after long commentary document');
+}
+
+function testRendererRemovesUnsupportedTableTags(): void
+{
+    $renderer = new TelegramTextRenderer();
+    $method = new ReflectionMethod(TelegramTextRenderer::class, 'replaceUnsupported');
+    $method->setAccessible(true);
+
+    $rendered = $method->invoke(
+        $renderer,
+        '<table><tr><th>Name</th><th>Value</th></tr><tr><td>A</td><td>1</td></tr></table>'
+    );
+
+    assertTrue(!str_contains($rendered, '<table'), 'table tag removed');
+    assertTrue(!str_contains($rendered, '<tr'), 'tr tag removed');
+    assertTrue(!str_contains($rendered, '<td'), 'td tag removed');
+    assertTrue(!str_contains($rendered, '<th'), 'th tag removed');
 }
 
 function testIngressRunnerRegistersBotCommandsBeforePolling(): void
@@ -927,6 +945,7 @@ testStatusCommandDefaultsToEnabled();
 testUnknownChatReplySkipsRouterIngress();
 testCommentarySendsTypingAfterMessage();
 testLongCommentaryFallsBackToDocumentWithCaption();
+testRendererRemovesUnsupportedTableTags();
 testIngressRunnerRegistersBotCommandsBeforePolling();
 testStatusEventCreatesInstructionAndStatusMessage();
 testIgnoreCommandSuppressesForumThreadIngressOnly();
