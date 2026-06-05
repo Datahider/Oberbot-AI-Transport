@@ -6,11 +6,16 @@ namespace CodexMultitenant\TransportTelegram;
 
 final class OutboundRunner
 {
+    /** @var null|callable(int): void */
+    private $sleep_fn;
+
     public function __construct(
         private RouterClientInterface $router,
         private TelegramTransport $transport,
-        private CursorStoreInterface $cursor_store
+        private CursorStoreInterface $cursor_store,
+        ?callable $sleep_fn = null
     ) {
+        $this->sleep_fn = $sleep_fn;
     }
 
     public function run(): void
@@ -33,16 +38,29 @@ final class OutboundRunner
                     'kind' => $event->kind,
                     'opaque' => $event->opaque,
                 ]);
-                try {
-                    $this->transport->deliverOutboundEvent($event);
-                } catch (\Throwable $e) {
-                    RuntimeLog::error('Outbound delivery failed', [
-                        'event_id' => $event->event_id,
-                        'kind' => $event->kind,
-                        'opaque' => $event->opaque,
-                        'error' => $e->getMessage(),
-                    ]);
-                    throw $e;
+
+                while (true) {
+                    try {
+                        $this->transport->deliverOutboundEvent($event);
+                        break;
+                    } catch (TelegramRateLimitException $e) {
+                        RuntimeLog::error('Outbound delivery rate limited', [
+                            'event_id' => $event->event_id,
+                            'kind' => $event->kind,
+                            'opaque' => $event->opaque,
+                            'retry_after_seconds' => $e->retry_after_seconds,
+                            'error' => $e->getMessage(),
+                        ]);
+                        $this->pause($e->retry_after_seconds * 1000);
+                    } catch (\Throwable $e) {
+                        RuntimeLog::error('Outbound delivery failed', [
+                            'event_id' => $event->event_id,
+                            'kind' => $event->kind,
+                            'opaque' => $event->opaque,
+                            'error' => $e->getMessage(),
+                        ]);
+                        throw $e;
+                    }
                 }
 
                 if ($event->event_id > $router_after_id) {
@@ -51,5 +69,15 @@ final class OutboundRunner
                 }
             }
         }
+    }
+
+    private function pause(int $milliseconds): void
+    {
+        if ($this->sleep_fn !== null) {
+            ($this->sleep_fn)($milliseconds);
+            return;
+        }
+
+        usleep($milliseconds * 1000);
     }
 }

@@ -259,11 +259,19 @@ final class TelegramApiClient implements TelegramClientInterface
 
         if ($status_code >= 400) {
             $description = (string) ($response['description'] ?? 'HTTP ' . $status_code);
+            $retry_after = (int) ($response['parameters']['retry_after'] ?? 0);
+            if ($status_code === 429 && $retry_after > 0) {
+                throw new TelegramRateLimitException('Telegram API request failed: ' . $description, $retry_after);
+            }
             throw new RuntimeException('Telegram API request failed: ' . $description);
         }
 
         if (($response['ok'] ?? false) !== true) {
             $description = (string) ($response['description'] ?? 'request failed');
+            $retry_after = (int) ($response['parameters']['retry_after'] ?? 0);
+            if ($retry_after > 0) {
+                throw new TelegramRateLimitException('Telegram API request failed: ' . $description, $retry_after);
+            }
             throw new RuntimeException('Telegram API request failed: ' . $description);
         }
 
@@ -311,11 +319,19 @@ final class TelegramApiClient implements TelegramClientInterface
 
         if ($status_code >= 400) {
             $description = (string) ($response['description'] ?? 'HTTP ' . $status_code);
+            $retry_after = (int) ($response['parameters']['retry_after'] ?? 0);
+            if ($status_code === 429 && $retry_after > 0) {
+                throw new TelegramRateLimitException('Telegram API request failed: ' . $description, $retry_after);
+            }
             throw new RuntimeException('Telegram API request failed: ' . $description);
         }
 
         if (($response['ok'] ?? false) !== true) {
             $description = (string) ($response['description'] ?? 'request failed');
+            $retry_after = (int) ($response['parameters']['retry_after'] ?? 0);
+            if ($retry_after > 0) {
+                throw new TelegramRateLimitException('Telegram API request failed: ' . $description, $retry_after);
+            }
             throw new RuntimeException('Telegram API request failed: ' . $description);
         }
 

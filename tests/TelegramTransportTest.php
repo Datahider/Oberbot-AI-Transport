@@ -13,6 +13,7 @@ use CodexMultitenant\TransportTelegram\StatusState;
 use CodexMultitenant\TransportTelegram\StatusStateStoreInterface;
 use CodexMultitenant\TransportTelegram\TelegramBotCommandCatalog;
 use CodexMultitenant\TransportTelegram\TelegramClientInterface;
+use CodexMultitenant\TransportTelegram\TelegramRateLimitException;
 use CodexMultitenant\TransportTelegram\TelegramTextRenderer;
 use CodexMultitenant\TransportTelegram\TelegramTransport;
 use CodexMultitenant\TransportTelegram\TelegramTransportConfig;
@@ -648,6 +649,54 @@ function testOutboundRunnerKeepsCursorWhenDeliveryFails(): void
     assertSame(0, $cursor_store->router_after_id, 'cursor after failed delivery');
 }
 
+function testOutboundRunnerWaitsAndRetriesAfterTelegramRateLimit(): void
+{
+    $telegram = new RateLimitedTelegramClient(10);
+    $status_store = new InMemoryStatusStateStore();
+    $status_store->save(new StatusState('100', true, null, null));
+    $transport = new TelegramTransport(
+        buildConfig(),
+        new FakeRouterClient(),
+        $telegram,
+        new InMemoryTenantMap(['100' => 'user@server']),
+        $status_store,
+        new InMemoryIgnoreStateStore()
+    );
+    $cursor_store = new InMemoryCursorStore();
+    $router = new SequencedOutboundRouterClient([
+        [[
+            'event_id' => 53,
+            'opaque' => '100',
+            'kind' => 'final',
+            'text' => 'retry ok',
+            'attachments' => [],
+            'meta' => [],
+        ]],
+    ]);
+    $sleeps = [];
+
+    $runner = new OutboundRunner(
+        $router,
+        $transport,
+        $cursor_store,
+        static function (int $milliseconds) use (&$sleeps): void {
+            $sleeps[] = $milliseconds;
+        }
+    );
+
+    try {
+        $runner->run();
+        fail('Expected runner to stop after fake router exhaustion');
+    } catch (RuntimeException $e) {
+        assertSame('stop polling', $e->getMessage(), 'runner stop marker');
+    }
+
+    assertSame([10000], $sleeps, 'rate limit sleep');
+    assertSame(53, $cursor_store->router_after_id, 'cursor after retry success');
+    assertSame('✅ retry ok', $telegram->sent_messages[0]['text'] ?? null, 'delivered after retry');
+    assertSame(2, $telegram->send_message_calls, 'retried same outbound delivery');
+}
+
 function buildConfig(): TelegramTransportConfig
 {
     return new TelegramTransportConfig(
@@ -938,6 +987,25 @@ final class ThrowingTelegramClient extends FakeTelegramClient
     }
 }
 
+final class RateLimitedTelegramClient extends FakeTelegramClient
+{
+    public int $send_message_calls = 0;
+
+    public function __construct(private int $retry_after_seconds)
+    {
+    }
+
+    public function sendMessage(int|string $chat_id, string $text, ?int $reply_to_message_id = null, ?string $parse_mode = null, bool $disable_notification = false, ?int $message_thread_id = null): array
+    {
+        $this->send_message_calls++;
+        if ($this->send_message_calls === 1) {
+            throw new TelegramRateLimitException('Too Many Requests: retry after ' . $this->retry_after_seconds, $this->retry_after_seconds);
+        }
+
+        return parent::sendMessage($chat_id, $text, $reply_to_message_id, $parse_mode, $disable_notification, $message_thread_id);
+    }
+}
+
 testConfigRequiresTelegramToken();
 testNormalizerBuildsOpaqueWithThread();
 testNormalizerRejectsUnsupportedUpdate();
@@ -957,5 +1025,6 @@ testDoneCommandReportsTelegramPermissionFailureWithoutCrash();
 testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery();
 testLongFinalFallsBackToDocumentWithCaption();
 testOutboundRunnerKeepsCursorWhenDeliveryFails();
+testOutboundRunnerWaitsAndRetriesAfterTelegramRateLimit();
 
 fwrite(STDOUT, "TelegramTransport tests: OK\n");
