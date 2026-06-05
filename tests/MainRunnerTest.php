@@ -41,6 +41,30 @@ function testMainRunnerStartsInboundAndOutboundWorkers(): void
     assertTrue(str_ends_with((string) ($started[1]['log_file'] ?? ''), '/var/log/router-outbound.log'), 'outbound log path');
 }
 
+function testMainRunnerWorkerBootstrapUsesLogFileObserver(): void
+{
+    $runner = new MainRunner(
+        buildConfig(),
+        __DIR__,
+        __FILE__,
+        __FILE__,
+        null,
+        static fn (int $pid): bool => true,
+        static function (int $milliseconds): void {
+        },
+        1
+    );
+
+    $method = new ReflectionMethod(MainRunner::class, 'buildWorkerBootstrap');
+    $method->setAccessible(true);
+
+    $bootstrap = $method->invoke($runner, 'outbound');
+
+    assertTrue(str_contains($bootstrap, '$log_file = %s;'), 'bootstrap has log file placeholder');
+    assertTrue(str_contains($bootstrap, 'RuntimeLog::setObserver'), 'bootstrap configures runtime log observer');
+    assertTrue(str_contains($bootstrap, "fopen(\$log_file, 'ab')"), 'bootstrap opens log file for append');
+}
+
 function testMainRunnerRestartsExitedWorkerAndLogsIt(): void
 {
     $launches = [];
@@ -99,6 +123,7 @@ function testMainRunnerRestartsExitedWorkerAndLogsIt(): void
 }
 
 testMainRunnerStartsInboundAndOutboundWorkers();
+testMainRunnerWorkerBootstrapUsesLogFileObserver();
 testMainRunnerRestartsExitedWorkerAndLogsIt();
 
 fwrite(STDOUT, "MainRunner tests: OK\n");

@@ -133,6 +133,23 @@ chdir(%s);
 require %s;
 use CodexMultitenant\\TransportTelegram\\RuntimeFactory;
 use CodexMultitenant\\TransportTelegram\\RuntimeLog;
+\$log_file = %s;
+RuntimeLog::setObserver(static function (array \$payload) use (\$log_file): void {
+    \$log_dir = dirname(\$log_file);
+    if (!is_dir(\$log_dir)) {
+        mkdir(\$log_dir, 0775, true);
+    }
+
+    \$encoded = json_encode(\$payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    \$line = \$encoded !== false ? \$encoded : ((string) (\$payload['level'] ?? 'INFO')) . ' ' . ((string) (\$payload['message'] ?? ''));
+    \$stream = fopen(\$log_file, 'ab');
+    if (\$stream === false) {
+        throw new \\RuntimeException('Cannot open worker log file: ' . \$log_file);
+    }
+
+    fwrite(\$stream, \$line . PHP_EOL);
+    fclose(\$stream);
+});
 try {
     \$runner = RuntimeFactory::{$factory}(%s);
     \$runner->run();
