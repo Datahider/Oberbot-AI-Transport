@@ -59,10 +59,19 @@ function testMainRunnerWorkerBootstrapUsesLogFileObserver(): void
     $method->setAccessible(true);
 
     $bootstrap = $method->invoke($runner, 'outbound');
+    $rendered = sprintf(
+        $bootstrap,
+        '/tmp/project-root',
+        '/tmp/bootstrap.php',
+        '/tmp/router-outbound.log',
+        '/tmp/runtime-config.php'
+    );
 
     assertTrue(str_contains($bootstrap, '$log_file = %s;'), 'bootstrap has log file placeholder');
     assertTrue(str_contains($bootstrap, 'RuntimeLog::setObserver'), 'bootstrap configures runtime log observer');
     assertTrue(str_contains($bootstrap, "fopen(\$log_file, 'ab')"), 'bootstrap opens log file for append');
+    assertTrue(str_contains($rendered, '/tmp/router-outbound.log'), 'rendered bootstrap uses log file as log destination');
+    assertTrue(str_contains($rendered, '/tmp/runtime-config.php'), 'rendered bootstrap uses runtime config path');
 }
 
 function testMainRunnerRestartsExitedWorkerAndLogsIt(): void

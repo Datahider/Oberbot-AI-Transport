@@ -179,8 +179,8 @@ PHP;
         $process = BackgroundProcess::create($bootstrap_code)->run(
             $project_root,
             $bootstrap_path,
-            $config_path,
-            $log_file
+            $log_file,
+            $config_path
         );
 
         return $process->getPid();
