@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace CodexMultitenant\TransportTelegram;
 
+use CodexMultitenant\TransportTelegram\Router\RouterUnavailableException;
+
 final class OutboundRunner
 {
+    private const TRANSIENT_RETRY_DELAY_MS = 5000;
+
     /** @var null|callable(int): void */
     private $sleep_fn;
 
@@ -23,7 +27,19 @@ final class OutboundRunner
         $router_after_id = $this->cursor_store->loadRouterAfterId();
 
         while (true) {
-            $events = $this->router->getOutboundEvents($router_after_id, 20, 100);
+            try {
+                $events = $this->router->getOutboundEvents($router_after_id, 20, 100);
+            } catch (RouterUnavailableException $e) {
+                RuntimeLog::error('Router outbound polling temporarily unavailable', [
+                    'after_id' => $router_after_id,
+                    'retry_after_ms' => self::TRANSIENT_RETRY_DELAY_MS,
+                    'error' => $e->getMessage(),
+                    'exception_class' => $e::class,
+                ]);
+                $this->pause(self::TRANSIENT_RETRY_DELAY_MS);
+                continue;
+            }
+
             if ($events !== []) {
                 RuntimeLog::info('Router outbound polled', [
                     'count' => count($events),
@@ -52,6 +68,16 @@ final class OutboundRunner
                             'error' => $e->getMessage(),
                         ]);
                         $this->pause($e->retry_after_seconds * 1000);
+                    } catch (RouterUnavailableException | TelegramUnavailableException $e) {
+                        RuntimeLog::error('Outbound delivery temporarily unavailable', [
+                            'event_id' => $event->event_id,
+                            'kind' => $event->kind,
+                            'opaque' => $event->opaque,
+                            'retry_after_ms' => self::TRANSIENT_RETRY_DELAY_MS,
+                            'error' => $e->getMessage(),
+                            'exception_class' => $e::class,
+                        ]);
+                        $this->pause(self::TRANSIENT_RETRY_DELAY_MS);
                     } catch (\Throwable $e) {
                         RuntimeLog::error('Outbound delivery failed', [
                             'event_id' => $event->event_id,

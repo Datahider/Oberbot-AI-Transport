@@ -246,7 +246,7 @@ final class TelegramApiClient implements TelegramClientInterface
         if ($raw === false) {
             $error = curl_error($ch);
             curl_close($ch);
-            throw new RuntimeException('Telegram API request failed: ' . $error);
+            throw new TelegramUnavailableException('Telegram API request failed: ' . $error);
         }
 
         $status_code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
@@ -254,7 +254,7 @@ final class TelegramApiClient implements TelegramClientInterface
 
         $response = json_decode($raw, true);
         if (!is_array($response)) {
-            throw new RuntimeException('Telegram API returned invalid JSON');
+            throw new TelegramUnavailableException('Telegram API returned invalid JSON');
         }
 
         if ($status_code >= 400) {
@@ -262,6 +262,9 @@ final class TelegramApiClient implements TelegramClientInterface
             $retry_after = (int) ($response['parameters']['retry_after'] ?? 0);
             if ($status_code === 429 && $retry_after > 0) {
                 throw new TelegramRateLimitException('Telegram API request failed: ' . $description, $retry_after);
+            }
+            if ($status_code >= 500) {
+                throw new TelegramUnavailableException('Telegram API request failed: ' . $description);
             }
             throw new RuntimeException('Telegram API request failed: ' . $description);
         }
@@ -306,7 +309,7 @@ final class TelegramApiClient implements TelegramClientInterface
         if ($raw === false) {
             $error = curl_error($ch);
             curl_close($ch);
-            throw new RuntimeException('Telegram API request failed: ' . $error);
+            throw new TelegramUnavailableException('Telegram API request failed: ' . $error);
         }
 
         $status_code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
@@ -314,7 +317,7 @@ final class TelegramApiClient implements TelegramClientInterface
 
         $response = json_decode($raw, true);
         if (!is_array($response)) {
-            throw new RuntimeException('Telegram API returned invalid JSON');
+            throw new TelegramUnavailableException('Telegram API returned invalid JSON');
         }
 
         if ($status_code >= 400) {
@@ -322,6 +325,9 @@ final class TelegramApiClient implements TelegramClientInterface
             $retry_after = (int) ($response['parameters']['retry_after'] ?? 0);
             if ($status_code === 429 && $retry_after > 0) {
                 throw new TelegramRateLimitException('Telegram API request failed: ' . $description, $retry_after);
+            }
+            if ($status_code >= 500) {
+                throw new TelegramUnavailableException('Telegram API request failed: ' . $description);
             }
             throw new RuntimeException('Telegram API request failed: ' . $description);
         }

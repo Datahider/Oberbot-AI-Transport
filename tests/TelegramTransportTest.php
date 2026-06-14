@@ -17,9 +17,11 @@ use CodexMultitenant\TransportTelegram\TelegramRateLimitException;
 use CodexMultitenant\TransportTelegram\TelegramTextRenderer;
 use CodexMultitenant\TransportTelegram\TelegramTransport;
 use CodexMultitenant\TransportTelegram\TelegramTransportConfig;
+use CodexMultitenant\TransportTelegram\TelegramUnavailableException;
 use CodexMultitenant\TransportTelegram\TelegramUpdateNormalizer;
 use CodexMultitenant\TransportTelegram\TenantMapInterface;
 use CodexMultitenant\TransportTelegram\CursorStoreInterface;
+use CodexMultitenant\TransportTelegram\Router\RouterUnavailableException;
 
 function testConfigRequiresTelegramToken(): void
 {
@@ -251,6 +253,108 @@ function testIngressRunnerRegistersBotCommandsBeforePolling(): void
 
     assertSame(TelegramBotCommandCatalog::all(), $telegram->bot_commands, 'registered bot commands');
     assertSame(1, $telegram->get_updates_calls, 'polling attempted after commands registration');
+}
+
+function testIngressRunnerWaitsAndRetriesAfterTelegramUnavailable(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new SequencedPollingTelegramClient([
+        new TelegramUnavailableException('Telegram API request failed: Operation timed out'),
+        [[
+            'update_id' => 71,
+            'message' => [
+                'message_id' => 901,
+                'text' => 'visible',
+                'chat' => [
+                    'id' => 100,
+                    'type' => 'private',
+                ],
+            ],
+        ]],
+    ]);
+    $cursor_store = new InMemoryCursorStore();
+    $sleeps = [];
+
+    $runner = new IngressRunner(
+        buildConfig(),
+        $telegram,
+        new TelegramTransport(
+            buildConfig(),
+            $router,
+            $telegram,
+            new InMemoryTenantMap(['100' => 'user@server']),
+            new InMemoryStatusStateStore(),
+            new InMemoryIgnoreStateStore()
+        ),
+        $cursor_store,
+        static function (int $milliseconds) use (&$sleeps): void {
+            $sleeps[] = $milliseconds;
+        }
+    );
+
+    try {
+        $runner->run();
+        fail('Expected polling stop');
+    } catch (RuntimeException $e) {
+        assertSame('stop polling', $e->getMessage(), 'polling stop');
+    }
+
+    assertSame([5000], $sleeps, 'telegram unavailable sleep');
+    assertSame('visible', $router->ingress_payloads[0]['text'] ?? null, 'update forwarded after retry');
+    assertSame(72, $cursor_store->telegram_offset, 'cursor after retry success');
+}
+
+function testIngressRunnerWaitsAndRetriesSameUpdateAfterRouterUnavailable(): void
+{
+    $router = new RetryingIngressRouterClient([
+        new RouterUnavailableException('Router HTTP request failed: Resolving timed out after 10000 milliseconds'),
+        ['accepted' => true, 'event_id' => 1],
+    ]);
+    $telegram = new SequencedPollingTelegramClient([
+        [[
+            'update_id' => 72,
+            'message' => [
+                'message_id' => 902,
+                'text' => 'visible again',
+                'chat' => [
+                    'id' => 100,
+                    'type' => 'private',
+                ],
+            ],
+        ]],
+    ]);
+    $cursor_store = new InMemoryCursorStore();
+    $sleeps = [];
+
+    $runner = new IngressRunner(
+        buildConfig(),
+        $telegram,
+        new TelegramTransport(
+            buildConfig(),
+            $router,
+            $telegram,
+            new InMemoryTenantMap(['100' => 'user@server']),
+            new InMemoryStatusStateStore(),
+            new InMemoryIgnoreStateStore()
+        ),
+        $cursor_store,
+        static function (int $milliseconds) use (&$sleeps): void {
+            $sleeps[] = $milliseconds;
+        }
+    );
+
+    try {
+        $runner->run();
+        fail('Expected polling stop');
+    } catch (RuntimeException $e) {
+        assertSame('stop polling', $e->getMessage(), 'polling stop');
+    }
+
+    assertSame([5000], $sleeps, 'router unavailable sleep');
+    assertSame(2, count($router->ingress_payloads), 'same update retried');
+    assertSame('visible again', $router->ingress_payloads[0]['text'] ?? null, 'first retried text');
+    assertSame('visible again', $router->ingress_payloads[1]['text'] ?? null, 'second retried text');
+    assertSame(73, $cursor_store->telegram_offset, 'cursor after router retry success');
 }
 
 function testStatusEventCreatesInstructionAndStatusMessage(): void
@@ -697,6 +801,53 @@ function testOutboundRunnerWaitsAndRetriesAfterTelegramRateLimit(): void
     assertSame(2, $telegram->send_message_calls, 'retried same outbound delivery');
 }
 
+function testOutboundRunnerWaitsAndRetriesAfterRouterUnavailable(): void
+{
+    $telegram = new FakeTelegramClient();
+    $cursor_store = new InMemoryCursorStore();
+    $router = new RetryableOutboundRouterClient([
+        new RouterUnavailableException('Router HTTP request failed: Resolving timed out after 10000 milliseconds'),
+        [[
+            'event_id' => 54,
+            'opaque' => '100',
+            'kind' => 'final',
+            'text' => 'retry router',
+            'attachments' => [],
+            'meta' => [],
+        ]],
+    ]);
+    $status_store = new InMemoryStatusStateStore();
+    $status_store->save(new StatusState('100', true, null, null));
+    $sleeps = [];
+
+    $runner = new OutboundRunner(
+        $router,
+        new TelegramTransport(
+            buildConfig(),
+            new FakeRouterClient(),
+            $telegram,
+            new InMemoryTenantMap(['100' => 'user@server']),
+            $status_store,
+            new InMemoryIgnoreStateStore()
+        ),
+        $cursor_store,
+        static function (int $milliseconds) use (&$sleeps): void {
+            $sleeps[] = $milliseconds;
+        }
+    );
+
+    try {
+        $runner->run();
+        fail('Expected runner to stop after fake router exhaustion');
+    } catch (RuntimeException $e) {
+        assertSame('stop polling', $e->getMessage(), 'runner stop marker');
+    }
+
+    assertSame([5000], $sleeps, 'router unavailable sleep');
+    assertSame(54, $cursor_store->router_after_id, 'cursor after router retry success');
+    assertSame('✅ retry router', $telegram->sent_messages[0]['text'] ?? null, 'delivered after router retry');
+}
+
 function buildConfig(): TelegramTransportConfig
 {
     return new TelegramTransportConfig(
@@ -759,6 +910,36 @@ final class SequencedOutboundRouterClient implements RouterClientInterface
 
         return array_shift($this->batches);
     }
+}
+
+final class RetryableOutboundRouterClient implements RouterClientInterface
+{
+    /**
+     * @param list<RouterUnavailableException|list<array<string, mixed>>> $responses
+     */
+    public function __construct(private array $responses)
+    {
+    }
+
+    public function postIngress(array $payload): array
+    {
+        throw new RuntimeException('not used');
+    }
+
+    public function getOutboundEvents(int $after_id, int $wait, int $limit): array
+    {
+        if ($this->responses === []) {
+            throw new RuntimeException('stop polling');
+        }
+
+        $response = array_shift($this->responses);
+        if ($response instanceof RouterUnavailableException) {
+            throw $response;
+        }
+
+        return $response;
+    }
+
 }
 
 class FakeTelegramClient implements TelegramClientInterface
@@ -901,6 +1082,31 @@ class FakeTelegramClient implements TelegramClientInterface
     }
 }
 
+final class SequencedPollingTelegramClient extends FakeTelegramClient
+{
+    /**
+     * @param list<TelegramUnavailableException|list<array<string, mixed>>> $responses
+     */
+    public function __construct(private array $responses)
+    {
+    }
+
+    public function getUpdates(?int $offset, int $timeout, int $limit = 100): array
+    {
+        $this->get_updates_calls++;
+        if ($this->responses === []) {
+            throw new RuntimeException('stop polling');
+        }
+
+        $response = array_shift($this->responses);
+        if ($response instanceof TelegramUnavailableException) {
+            throw $response;
+        }
+
+        return $response;
+    }
+}
+
 final class InMemoryTenantMap implements TenantMapInterface
 {
     /**
@@ -987,6 +1193,44 @@ final class ThrowingTelegramClient extends FakeTelegramClient
     }
 }
 
+final class RetryingIngressRouterClient implements RouterClientInterface
+{
+    /** @var list<array<string, mixed>> */
+    public array $ingress_payloads = [];
+
+    /** @var list<RouterUnavailableException|array<string, mixed>> */
+    private array $responses;
+
+    /**
+     * @param list<RouterUnavailableException|array<string, mixed>> $responses
+     */
+    public function __construct(array $responses)
+    {
+        $this->responses = $responses;
+    }
+
+    public function postIngress(array $payload): array
+    {
+        $this->ingress_payloads[] = $payload;
+
+        if ($this->responses === []) {
+            throw new RuntimeException('missing ingress response');
+        }
+
+        $response = array_shift($this->responses);
+        if ($response instanceof RouterUnavailableException) {
+            throw $response;
+        }
+
+        return $response;
+    }
+
+    public function getOutboundEvents(int $after_id, int $wait, int $limit): array
+    {
+        throw new RuntimeException('not used');
+    }
+}
+
 final class RateLimitedTelegramClient extends FakeTelegramClient
 {
     public int $send_message_calls = 0;
@@ -1015,6 +1259,8 @@ testCommentarySendsTypingAfterMessage();
 testLongCommentaryFallsBackToDocumentWithCaption();
 testRendererRemovesUnsupportedTableTags();
 testIngressRunnerRegistersBotCommandsBeforePolling();
+testIngressRunnerWaitsAndRetriesAfterTelegramUnavailable();
+testIngressRunnerWaitsAndRetriesSameUpdateAfterRouterUnavailable();
 testStatusEventCreatesInstructionAndStatusMessage();
 testIgnoreCommandSuppressesForumThreadIngressOnly();
 testUnignoreCommandRestoresChatIngress();
@@ -1026,5 +1272,6 @@ testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery();
 testLongFinalFallsBackToDocumentWithCaption();
 testOutboundRunnerKeepsCursorWhenDeliveryFails();
 testOutboundRunnerWaitsAndRetriesAfterTelegramRateLimit();
+testOutboundRunnerWaitsAndRetriesAfterRouterUnavailable();
 
 fwrite(STDOUT, "TelegramTransport tests: OK\n");
