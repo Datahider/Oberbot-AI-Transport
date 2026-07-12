@@ -227,6 +227,18 @@ function testRendererRemovesUnsupportedTableTags(): void
     assertTrue(!str_contains($rendered, '<th'), 'th tag removed');
 }
 
+function testRendererEscapesRawAngleBracketsBeforeMarkdownConversion(): void
+{
+    $renderer = new TelegramTextRenderer();
+    $method = new ReflectionMethod(TelegramTextRenderer::class, 'escapeRawAngleBrackets');
+    $method->setAccessible(true);
+
+    $rendered = $method->invoke($renderer, "literal <files>\n<5 authoritative artifacts>");
+
+    assertTrue(str_contains($rendered, '&lt;files>'), 'files tag escaped');
+    assertTrue(str_contains($rendered, '&lt;5 authoritative artifacts>'), 'pseudo tag escaped');
+}
+
 function testIngressRunnerRegistersBotCommandsBeforePolling(): void
 {
     $telegram = new FakeTelegramClient();
@@ -1398,6 +1410,7 @@ testUnknownChatReplySkipsRouterIngress();
 testCommentarySendsTypingAfterMessage();
 testLongCommentaryFallsBackToDocumentWithCaption();
 testRendererRemovesUnsupportedTableTags();
+testRendererEscapesRawAngleBracketsBeforeMarkdownConversion();
 testIngressRunnerRegistersBotCommandsBeforePolling();
 testIngressRunnerWaitsAndRetriesAfterTelegramUnavailable();
 testIngressRunnerWaitsAndRetriesAfterTelegramRateLimit();

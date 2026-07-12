@@ -25,6 +25,8 @@ final class TelegramTextRenderer
             return '';
         }
 
+        $markdown = $this->escapeRawAngleBrackets($markdown);
+
         $this->loadBrokenFastVoltDependencies();
 
         if (!class_exists(Markdown::class)) {
@@ -37,6 +39,11 @@ final class TelegramTextRenderer
             : $instance->toHtml();
 
         return trim($this->replaceUnsupported((string) $html));
+    }
+
+    private function escapeRawAngleBrackets(string $markdown): string
+    {
+        return str_replace('<', '&lt;', $markdown);
     }
 
     private function loadBrokenFastVoltDependencies(): void
