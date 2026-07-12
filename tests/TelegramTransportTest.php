@@ -9,6 +9,7 @@ use CodexMultitenant\TransportTelegram\OutboundRunner;
 use CodexMultitenant\TransportTelegram\RouterClientInterface;
 use CodexMultitenant\TransportTelegram\IgnoreStateStoreInterface;
 use CodexMultitenant\TransportTelegram\IngressRunner;
+use CodexMultitenant\TransportTelegram\RuntimeLog;
 use CodexMultitenant\TransportTelegram\StatusState;
 use CodexMultitenant\TransportTelegram\StatusStateStoreInterface;
 use CodexMultitenant\TransportTelegram\TelegramBotCommandCatalog;
@@ -247,7 +248,7 @@ function testIngressRunnerRegistersBotCommandsBeforePolling(): void
     try {
         $runner->run();
         fail('Expected polling stop');
-    } catch (RuntimeException $e) {
+    } catch (StopPollingSignal $e) {
         assertSame('stop polling', $e->getMessage(), 'polling stop');
     }
 
@@ -295,13 +296,62 @@ function testIngressRunnerWaitsAndRetriesAfterTelegramUnavailable(): void
     try {
         $runner->run();
         fail('Expected polling stop');
-    } catch (RuntimeException $e) {
+    } catch (StopPollingSignal $e) {
         assertSame('stop polling', $e->getMessage(), 'polling stop');
     }
 
     assertSame([5000], $sleeps, 'telegram unavailable sleep');
     assertSame('visible', $router->ingress_payloads[0]['text'] ?? null, 'update forwarded after retry');
     assertSame(72, $cursor_store->telegram_offset, 'cursor after retry success');
+}
+
+function testIngressRunnerWaitsAndRetriesAfterTelegramRateLimit(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new SequencedPollingTelegramClient([
+        new TelegramRateLimitException('Telegram API request failed: Too Many Requests: retry after 7', 7),
+        [[
+            'update_id' => 71,
+            'message' => [
+                'message_id' => 901,
+                'text' => 'visible',
+                'chat' => [
+                    'id' => 100,
+                    'type' => 'private',
+                ],
+            ],
+        ]],
+    ]);
+    $cursor_store = new InMemoryCursorStore();
+    $sleeps = [];
+
+    $runner = new IngressRunner(
+        buildConfig(),
+        $telegram,
+        new TelegramTransport(
+            buildConfig(),
+            $router,
+            $telegram,
+            new InMemoryTenantMap(['100' => 'user@server']),
+            new InMemoryStatusStateStore(),
+            new InMemoryIgnoreStateStore()
+        ),
+        $cursor_store,
+        static function (int $milliseconds) use (&$sleeps): void {
+            $sleeps[] = $milliseconds;
+        }
+    );
+
+    try {
+        $runner->run();
+        fail('Expected polling stop');
+    } catch (StopPollingSignal $e) {
+        assertSame('stop polling', $e->getMessage(), 'polling stop');
+    }
+
+    assertSame([7000], $sleeps, 'telegram rate limit sleep');
+    assertSame('visible', $router->ingress_payloads[0]['text'] ?? null, 'update forwarded after rate limit retry');
+    assertSame(72, $cursor_store->telegram_offset, 'cursor after rate limit retry');
 }
 
 function testIngressRunnerWaitsAndRetriesSameUpdateAfterRouterUnavailable(): void
@@ -346,7 +396,7 @@ function testIngressRunnerWaitsAndRetriesSameUpdateAfterRouterUnavailable(): voi
     try {
         $runner->run();
         fail('Expected polling stop');
-    } catch (RuntimeException $e) {
+    } catch (StopPollingSignal $e) {
         assertSame('stop polling', $e->getMessage(), 'polling stop');
     }
 
@@ -355,6 +405,71 @@ function testIngressRunnerWaitsAndRetriesSameUpdateAfterRouterUnavailable(): voi
     assertSame('visible again', $router->ingress_payloads[0]['text'] ?? null, 'first retried text');
     assertSame('visible again', $router->ingress_payloads[1]['text'] ?? null, 'second retried text');
     assertSame(73, $cursor_store->telegram_offset, 'cursor after router retry success');
+}
+
+function testIngressRunnerLogsAndSkipsUnexpectedUpdateError(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FailOnceReplyTelegramClient([
+        [[
+            'update_id' => 80,
+            'message' => [
+                'message_id' => 903,
+                'text' => '/status',
+                'chat' => [
+                    'id' => 100,
+                    'type' => 'private',
+                ],
+            ],
+        ], [
+            'update_id' => 81,
+            'message' => [
+                'message_id' => 904,
+                'text' => 'survived',
+                'chat' => [
+                    'id' => 100,
+                    'type' => 'private',
+                ],
+            ],
+        ]],
+    ], new RuntimeException('Telegram API request failed: Bad Request: message thread not found'));
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router,
+        $telegram,
+        new InMemoryTenantMap(['100' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+    $cursor_store = new InMemoryCursorStore();
+    $log_records = [];
+
+    RuntimeLog::setObserver(static function (array $payload) use (&$log_records): void {
+        $log_records[] = $payload;
+    });
+
+    try {
+        $runner = new IngressRunner(
+            buildConfig(),
+            $telegram,
+            $transport,
+            $cursor_store,
+            static function (int $milliseconds): void {
+            }
+        );
+
+        $runner->run();
+        fail('Expected polling stop');
+    } catch (StopPollingSignal $e) {
+        assertSame('stop polling', $e->getMessage(), 'polling stop');
+    } finally {
+        RuntimeLog::setObserver(null);
+    }
+
+    assertSame(['survived'], array_column($router->ingress_payloads, 'text'), 'next update still forwarded');
+    assertSame(82, $cursor_store->telegram_offset, 'cursor advanced after skipped update');
+    $error_logs = array_values(array_filter($log_records, static fn (array $payload): bool => ($payload['level'] ?? null) === 'ERROR'));
+    assertSame('Ingress update ignored after unexpected error', $error_logs[0]['message'] ?? null, 'unexpected error message');
 }
 
 function testStatusEventCreatesInstructionAndStatusMessage(): void
@@ -368,6 +483,19 @@ function testStatusEventCreatesInstructionAndStatusMessage(): void
         new InMemoryStatusStateStore(),
         new InMemoryIgnoreStateStore()
     );
+
+    $transport->deliverOutboundEvent(new OutboundEvent(
+        event_id: 15,
+        opaque: '100',
+        kind: 'status',
+        text: 'Busy: 42',
+        attachments: [],
+        meta: []
+    ));
+
+    assertSame('pin this', $telegram->sent_messages[0]['text'] ?? null, 'instruction text');
+    assertSame('Busy: 42', $telegram->sent_messages[1]['text'] ?? null, 'status message');
+}
 
 function testIgnoreCommandSuppressesForumThreadIngressOnly(): void
 {
@@ -638,19 +766,6 @@ function testDoneCommandReportsTelegramPermissionFailureWithoutCrash(): void
     assertSame('Команда /done недоступна: у бота нет прав администратора для управления темой.', $result['messages'][0]['text'] ?? null, 'done permission failure diagnostic');
     assertSame([], $router->ingress_payloads, 'done permission failure not forwarded');
     assertSame([], $telegram->closed_topics, 'done permission failure no topic close');
-}
-
-    $transport->deliverOutboundEvent(new OutboundEvent(
-        event_id: 15,
-        opaque: '100',
-        kind: 'status',
-        text: 'Busy: 42',
-        attachments: [],
-        meta: []
-    ));
-
-    assertSame('pin this', $telegram->sent_messages[0]['text'] ?? null, 'instruction text');
-    assertSame('Busy: 42', $telegram->sent_messages[1]['text'] ?? null, 'status message');
 }
 
 function testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery(): void
@@ -1075,17 +1190,17 @@ class FakeTelegramClient implements TelegramClientInterface
     {
         $this->get_updates_calls++;
         if ($this->throw_on_get_updates) {
-            throw new RuntimeException('stop polling');
+            throw new StopPollingSignal('stop polling');
         }
 
         return [];
     }
 }
 
-final class SequencedPollingTelegramClient extends FakeTelegramClient
+class SequencedPollingTelegramClient extends FakeTelegramClient
 {
     /**
-     * @param list<TelegramUnavailableException|list<array<string, mixed>>> $responses
+     * @param list<RuntimeException|list<array<string, mixed>>> $responses
      */
     public function __construct(private array $responses)
     {
@@ -1095,15 +1210,40 @@ final class SequencedPollingTelegramClient extends FakeTelegramClient
     {
         $this->get_updates_calls++;
         if ($this->responses === []) {
-            throw new RuntimeException('stop polling');
+            throw new StopPollingSignal('stop polling');
         }
 
         $response = array_shift($this->responses);
-        if ($response instanceof TelegramUnavailableException) {
+        if ($response instanceof RuntimeException) {
             throw $response;
         }
 
         return $response;
+    }
+}
+
+final class StopPollingSignal extends Error
+{
+}
+
+final class FailOnceReplyTelegramClient extends SequencedPollingTelegramClient
+{
+    public function __construct(
+        array $responses,
+        private ?RuntimeException $exception
+    ) {
+        parent::__construct($responses);
+    }
+
+    public function sendMessage(int|string $chat_id, string $text, ?int $reply_to_message_id = null, ?string $parse_mode = null, bool $disable_notification = false, ?int $message_thread_id = null): array
+    {
+        if ($this->exception !== null) {
+            $exception = $this->exception;
+            $this->exception = null;
+            throw $exception;
+        }
+
+        return parent::sendMessage($chat_id, $text, $reply_to_message_id, $parse_mode, $disable_notification, $message_thread_id);
     }
 }
 
@@ -1260,7 +1400,9 @@ testLongCommentaryFallsBackToDocumentWithCaption();
 testRendererRemovesUnsupportedTableTags();
 testIngressRunnerRegistersBotCommandsBeforePolling();
 testIngressRunnerWaitsAndRetriesAfterTelegramUnavailable();
+testIngressRunnerWaitsAndRetriesAfterTelegramRateLimit();
 testIngressRunnerWaitsAndRetriesSameUpdateAfterRouterUnavailable();
+testIngressRunnerLogsAndSkipsUnexpectedUpdateError();
 testStatusEventCreatesInstructionAndStatusMessage();
 testIgnoreCommandSuppressesForumThreadIngressOnly();
 testUnignoreCommandRestoresChatIngress();
