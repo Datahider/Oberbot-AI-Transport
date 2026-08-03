@@ -158,7 +158,9 @@ final class TelegramTransport
             ];
         }
 
-        $progress_message_id = $this->sendAttachmentProgressIfNeeded($message);
+        // Disabled for now: for small files Telegram renders the animation too late
+        // to be useful, so the transport skips sending temporary progress feedback.
+        $progress_message_id = null;
         $response = $this->router->postIngress([
             'tenant' => $tenant,
             'opaque' => $message->opaque,
