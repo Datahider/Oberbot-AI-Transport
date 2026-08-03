@@ -113,7 +113,8 @@
   - не скачивать бинарник
   - не вызывать upload в file exchange
 - Если message содержит supported media и не отклонён по размеру, transport обязан сразу отправить временное Telegram animation-message:
-  - animation: `https://ioannidis.ru/dl/googler-loader.gif`
+  - source animation URL: `https://ioannidis.ru/dl/googler-loader.gif`
+  - transport сначала скачивает этот GIF локально и отправляет его в Telegram как uploaded animation file
   - caption: `Обработка файла(ов)`
 - После завершения upload всех attachment в file exchange transport обязан удалить это временное animation-message.
 - Если `Router` возвращает `accepted=false` и `action.type=reply_text`, transport отправляет `action.text` в Telegram как обычное сообщение.

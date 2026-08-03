@@ -181,7 +181,6 @@ final class TelegramApiClient implements TelegramClientInterface
 
         $payload = [
             'chat_id' => $chat_id,
-            'animation' => $animation,
             'disable_notification' => $disable_notification,
         ];
 
@@ -192,6 +191,14 @@ final class TelegramApiClient implements TelegramClientInterface
         if ($message_thread_id !== null && $message_thread_id > 0) {
             $payload['message_thread_id'] = $message_thread_id;
         }
+
+        if (is_file($animation)) {
+            return $this->multipartRequest('sendAnimation', $payload, [
+                'animation' => new \CURLFile($animation, 'image/gif', basename($animation)),
+            ]);
+        }
+
+        $payload['animation'] = $animation;
 
         return $this->request('sendAnimation', $payload);
     }

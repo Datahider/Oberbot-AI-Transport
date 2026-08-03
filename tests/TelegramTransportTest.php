@@ -279,7 +279,8 @@ function testMediaMessageUploadsSupportedTelegramFilesAndForwardsAttachments(): 
     ]);
 
     assertSame(true, $result['accepted'], 'media accepted');
-    assertSame('https://ioannidis.ru/dl/googler-loader.gif', $telegram->sent_animations[0]['animation'] ?? null, 'progress animation url');
+    assertSame(true, $telegram->sent_animations[0]['file_exists'] ?? null, 'progress animation uploaded as file');
+    assertTrue(($telegram->sent_animations[0]['content_length'] ?? 0) > 0, 'progress animation file content captured');
     assertSame('Обработка файла(ов)', $telegram->sent_animations[0]['caption'] ?? null, 'progress animation caption');
     assertSame(3000, $telegram->deleted_messages[0]['message_id'] ?? null, 'progress animation deleted');
     assertSame('files attached', $router->ingress_payloads[0]['text'] ?? null, 'media caption forwarded');
@@ -1462,6 +1463,8 @@ class FakeTelegramClient implements TelegramClientInterface
         $this->sent_animations[] = [
             'chat_id' => $chat_id,
             'animation' => $animation,
+            'file_exists' => is_file($animation),
+            'content_length' => is_file($animation) ? strlen((string) file_get_contents($animation)) : 0,
             'caption' => $caption,
             'disable_notification' => $disable_notification,
             'message_thread_id' => $message_thread_id,

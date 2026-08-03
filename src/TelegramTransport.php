@@ -682,13 +682,21 @@ final class TelegramTransport
             return null;
         }
 
-        $result = $this->telegram->sendAnimation(
-            $message->chat_id,
-            self::FILE_PROCESSING_ANIMATION,
-            self::FILE_PROCESSING_TEXT,
-            true,
-            $message->thread_id
-        );
+        $animation_path = $this->downloadProgressAnimation();
+
+        try {
+            $result = $this->telegram->sendAnimation(
+                $message->chat_id,
+                $animation_path,
+                self::FILE_PROCESSING_TEXT,
+                true,
+                $message->thread_id
+            );
+        } finally {
+            if (is_file($animation_path)) {
+                @unlink($animation_path);
+            }
+        }
 
         $message_id = $result['result']['message_id'] ?? $result['message_id'] ?? null;
 
@@ -702,5 +710,41 @@ final class TelegramTransport
         }
 
         $this->telegram->deleteMessage($message->chat_id, $progress_message_id);
+    }
+
+    private function downloadProgressAnimation(): string
+    {
+        $ch = curl_init(self::FILE_PROCESSING_ANIMATION);
+        if ($ch === false) {
+            throw new RuntimeException('Cannot initialize progress animation download');
+        }
+
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_FOLLOWLOCATION => true,
+        ]);
+
+        $raw = curl_exec($ch);
+        if (!is_string($raw)) {
+            $error = curl_error($ch);
+            curl_close($ch);
+            throw new RuntimeException('Progress animation download failed: ' . $error);
+        }
+
+        $status_code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+
+        if ($status_code < 200 || $status_code >= 300) {
+            throw new RuntimeException('Progress animation download failed with HTTP ' . $status_code);
+        }
+
+        $path = rtrim(sys_get_temp_dir(), '/') . '/telegram-progress-' . bin2hex(random_bytes(8)) . '.gif';
+        if (file_put_contents($path, $raw) === false) {
+            throw new RuntimeException('Cannot write progress animation file');
+        }
+
+        return $path;
     }
 }
