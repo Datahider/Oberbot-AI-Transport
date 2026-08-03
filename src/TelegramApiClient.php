@@ -167,6 +167,43 @@ final class TelegramApiClient implements TelegramClientInterface
         $this->request('sendChatAction', $payload);
     }
 
+    public function sendAnimation(
+        int|string $chat_id,
+        string $animation,
+        ?string $caption = null,
+        bool $disable_notification = false,
+        ?int $message_thread_id = null
+    ): array {
+        $animation = trim($animation);
+        if ($animation === '') {
+            throw new RuntimeException('Telegram animation cannot be empty');
+        }
+
+        $payload = [
+            'chat_id' => $chat_id,
+            'animation' => $animation,
+            'disable_notification' => $disable_notification,
+        ];
+
+        if ($caption !== null && trim($caption) !== '') {
+            $payload['caption'] = trim($caption);
+        }
+
+        if ($message_thread_id !== null && $message_thread_id > 0) {
+            $payload['message_thread_id'] = $message_thread_id;
+        }
+
+        return $this->request('sendAnimation', $payload);
+    }
+
+    public function deleteMessage(int|string $chat_id, int $message_id): void
+    {
+        $this->request('deleteMessage', [
+            'chat_id' => $chat_id,
+            'message_id' => $message_id,
+        ]);
+    }
+
     public function editForumTopic(
         int|string $chat_id,
         int $message_thread_id,
@@ -213,6 +250,65 @@ final class TelegramApiClient implements TelegramClientInterface
         $updates = $result['result'] ?? [];
 
         return is_array($updates) ? array_values(array_filter($updates, 'is_array')) : [];
+    }
+
+    public function getFile(string $file_id): array
+    {
+        $file_id = trim($file_id);
+        if ($file_id === '') {
+            throw new RuntimeException('Telegram file id is required');
+        }
+
+        $result = $this->request('getFile', [
+            'file_id' => $file_id,
+        ]);
+
+        $file = $result['result'] ?? null;
+        if (!is_array($file)) {
+            throw new TelegramUnavailableException('Telegram API returned invalid getFile payload');
+        }
+
+        return $file;
+    }
+
+    public function downloadFile(string $file_path): string
+    {
+        $file_path = ltrim(trim($file_path), '/');
+        if ($file_path === '') {
+            throw new RuntimeException('Telegram file path is required');
+        }
+
+        $url = preg_replace('#/(bot[^/]+/)$#', '/file/$1', $this->base_url);
+        if (!is_string($url) || $url === '') {
+            throw new RuntimeException('Cannot build Telegram file download URL');
+        }
+
+        $ch = curl_init($url . $file_path);
+        if ($ch === false) {
+            throw new RuntimeException('Cannot initialize Telegram file download');
+        }
+
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 60,
+            CURLOPT_CONNECTTIMEOUT => 10,
+        ]);
+
+        $raw = curl_exec($ch);
+        if (!is_string($raw)) {
+            $error = curl_error($ch);
+            curl_close($ch);
+            throw new TelegramUnavailableException('Telegram file download failed: ' . $error);
+        }
+
+        $status_code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+
+        if ($status_code < 200 || $status_code >= 300) {
+            throw new TelegramUnavailableException('Telegram file download failed with HTTP ' . $status_code);
+        }
+
+        return $raw;
     }
 
     /**

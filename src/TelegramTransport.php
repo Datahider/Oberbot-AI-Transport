@@ -10,7 +10,11 @@ use Throwable;
 final class TelegramTransport
 {
     private const TELEGRAM_TEXT_LIMIT = 4096;
+    private const MAX_INBOUND_ATTACHMENT_SIZE_BYTES = 20 * 1024 * 1024;
     private const LONG_MESSAGE_CAPTION = 'Ответ получился слишком длинным, поэтому отправил его файлом.';
+    private const OVERSIZED_ATTACHMENT_TEXT = 'Файл больше 20 МБ. Отправьте файл меньше 20 МБ.';
+    private const FILE_PROCESSING_ANIMATION = 'https://ioannidis.ru/dl/googler-loader.gif';
+    private const FILE_PROCESSING_TEXT = 'Обработка файла(ов)';
 
     private readonly TelegramUpdateNormalizer $normalizer;
     private readonly TelegramTextRenderer $renderer;
@@ -21,7 +25,8 @@ final class TelegramTransport
         private TelegramClientInterface $telegram,
         private TenantMapInterface $tenant_map,
         private StatusStateStoreInterface $status_store,
-        private IgnoreStateStoreInterface $ignore_store
+        private IgnoreStateStoreInterface $ignore_store,
+        private ?FileExchangeClientInterface $file_exchange = null
     ) {
         $this->normalizer = new TelegramUpdateNormalizer();
         $this->renderer = new TelegramTextRenderer();
@@ -103,6 +108,24 @@ final class TelegramTransport
             return $this->handleDoneCommand($message);
         }
 
+        $oversized_attachment = $this->findOversizedAttachment($message->attachments);
+        if ($oversized_attachment !== null) {
+            RuntimeLog::info('Rejected oversized inbound attachment', [
+                'chat_id' => $message->chat_id,
+                'opaque' => $message->opaque,
+                'attachment_type' => (string) ($oversized_attachment['attachment_type'] ?? ''),
+                'size_bytes' => $oversized_attachment['size_bytes'] ?? null,
+                'max_size_bytes' => self::MAX_INBOUND_ATTACHMENT_SIZE_BYTES,
+            ]);
+
+            return [
+                'accepted' => false,
+                'messages' => [
+                    $this->sendTextReply($message, self::OVERSIZED_ATTACHMENT_TEXT, null, true),
+                ],
+            ];
+        }
+
         $ignore_scope = $this->ingressScopeFor($message);
         if ($this->ignore_store->isIgnored($ignore_scope)) {
             RuntimeLog::info('Ignored inbound message by local scope rule', [
@@ -136,14 +159,16 @@ final class TelegramTransport
             ];
         }
 
+        $progress_message_id = $this->sendAttachmentProgressIfNeeded($message);
         $response = $this->router->postIngress([
             'tenant' => $tenant,
             'opaque' => $message->opaque,
             'kind' => 'message',
             'text' => $message->text,
-            'attachments' => [],
+            'attachments' => $this->uploadAttachments($message->attachments),
             'meta' => $message->meta,
         ]);
+        $this->deleteAttachmentProgressIfNeeded($message, $progress_message_id);
         RuntimeLog::info('Forwarded inbound message to Router', [
             'chat_id' => $message->chat_id,
             'opaque' => $message->opaque,
@@ -522,5 +547,160 @@ final class TelegramTransport
         }
 
         return $path;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $attachments
+     * @return list<array<string, mixed>>
+     */
+    private function uploadAttachments(array $attachments): array
+    {
+        if ($attachments === []) {
+            return [];
+        }
+
+        if ($this->file_exchange === null) {
+            throw new RuntimeException('File exchange client is not configured');
+        }
+
+        $normalized = [];
+
+        foreach ($attachments as $attachment) {
+            $normalized[] = $this->uploadSingleAttachment($attachment);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $attachment
+     * @return array<string, mixed>
+     */
+    private function uploadSingleAttachment(array $attachment): array
+    {
+        $file_id = trim((string) ($attachment['file_id'] ?? ''));
+        if ($file_id === '') {
+            throw new RuntimeException('Telegram inbound attachment is missing file_id');
+        }
+
+        $file = $this->telegram->getFile($file_id);
+        $file_path = trim((string) ($file['file_path'] ?? ''));
+        if ($file_path === '') {
+            throw new RuntimeException('Telegram getFile response is missing file_path');
+        }
+
+        $filename = $this->resolveAttachmentFilename($attachment, $file_id);
+        $mime = isset($attachment['mime']) && is_string($attachment['mime']) && trim($attachment['mime']) !== ''
+            ? trim((string) $attachment['mime'])
+            : null;
+
+        $temp_path = $this->writeInboundTempFile($filename, $this->telegram->downloadFile($file_path));
+
+        try {
+            $uploaded = $this->file_exchange->uploadFile($temp_path, $filename, $mime);
+        } finally {
+            if (is_file($temp_path)) {
+                @unlink($temp_path);
+            }
+        }
+
+        $url = trim((string) ($uploaded['url'] ?? ''));
+        if ($url === '') {
+            throw new RuntimeException('File exchange upload response is missing url');
+        }
+
+        $uploaded_name = trim((string) ($uploaded['filename'] ?? ''));
+        $uploaded_size = isset($uploaded['size']) && is_numeric($uploaded['size'])
+            ? (int) $uploaded['size']
+            : null;
+        $fallback_size = isset($attachment['size_bytes']) && is_numeric($attachment['size_bytes'])
+            ? (int) $attachment['size_bytes']
+            : null;
+        $normalized = array_filter([
+            'type' => trim((string) ($attachment['attachment_type'] ?? '')),
+            'url' => $url,
+            'name' => $uploaded_name !== '' ? $uploaded_name : $filename,
+            'size_bytes' => $uploaded_size ?? $fallback_size,
+        ], static fn (mixed $value): bool => $value !== null && $value !== '');
+
+        RuntimeLog::info('Inbound attachment uploaded to file exchange', $normalized);
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $attachment
+     */
+    private function resolveAttachmentFilename(array $attachment, string $file_id): string
+    {
+        $name = trim((string) ($attachment['name'] ?? ''));
+        if ($name !== '') {
+            return $name;
+        }
+
+        $telegram_type = trim((string) ($attachment['telegram_type'] ?? 'file'));
+
+        return match ($telegram_type) {
+            'photo' => $file_id . '.jpg',
+            'audio' => $file_id . '.audio',
+            'video' => $file_id . '.video',
+            default => $file_id . '.bin',
+        };
+    }
+
+    private function writeInboundTempFile(string $filename, string $contents): string
+    {
+        $extension = pathinfo($filename, PATHINFO_EXTENSION);
+        $suffix = $extension !== '' ? '.' . $extension : '.bin';
+        $path = rtrim(sys_get_temp_dir(), '/') . '/telegram-inbound-' . bin2hex(random_bytes(8)) . $suffix;
+        if (file_put_contents($path, $contents) === false) {
+            throw new RuntimeException('Cannot write inbound attachment temp file');
+        }
+
+        return $path;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $attachments
+     * @return array<string, mixed>|null
+     */
+    private function findOversizedAttachment(array $attachments): ?array
+    {
+        foreach ($attachments as $attachment) {
+            $size_bytes = $attachment['size_bytes'] ?? null;
+            if (is_numeric($size_bytes) && (int) $size_bytes > self::MAX_INBOUND_ATTACHMENT_SIZE_BYTES) {
+                return $attachment;
+            }
+        }
+
+        return null;
+    }
+
+    private function sendAttachmentProgressIfNeeded(TelegramInboundMessage $message): ?int
+    {
+        if ($message->attachments === []) {
+            return null;
+        }
+
+        $result = $this->telegram->sendAnimation(
+            $message->chat_id,
+            self::FILE_PROCESSING_ANIMATION,
+            self::FILE_PROCESSING_TEXT,
+            true,
+            $message->thread_id
+        );
+
+        $message_id = $result['result']['message_id'] ?? $result['message_id'] ?? null;
+
+        return is_numeric($message_id) ? (int) $message_id : null;
+    }
+
+    private function deleteAttachmentProgressIfNeeded(TelegramInboundMessage $message, ?int $progress_message_id): void
+    {
+        if ($progress_message_id === null || $progress_message_id <= 0) {
+            return;
+        }
+
+        $this->telegram->deleteMessage($message->chat_id, $progress_message_id);
     }
 }

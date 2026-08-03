@@ -16,6 +16,8 @@ final class TelegramTransportConfig
         public readonly string $telegram_bot_token,
         public readonly string $telegram_base_url,
         public readonly string $telegram_endpoint_prefix,
+        public readonly string $file_exchange_base_url,
+        public readonly string $file_exchange_token,
         public readonly string $transport_instance_id,
         public readonly int $outbound_poll_interval_ms,
         public readonly int $telegram_poll_timeout_seconds,
@@ -41,6 +43,7 @@ final class TelegramTransportConfig
         $config = self::loadConfig($config_path);
         $router = self::requireArray($config, 'router');
         $telegram = self::requireArray($config, 'telegram');
+        $file_exchange = self::requireArray($config, 'file_exchange');
         $transport = self::requireArray($config, 'transport');
         $db = self::requireArray($config, 'db');
 
@@ -49,6 +52,8 @@ final class TelegramTransportConfig
         $telegram_bot_token = trim((string) ($telegram['bot_token'] ?? ''));
         $telegram_base_url = rtrim(trim((string) ($telegram['base_url'] ?? '')), '/');
         $telegram_endpoint_prefix = trim((string) ($telegram['endpoint_prefix'] ?? 'bot'), '/');
+        $file_exchange_base_url = rtrim(trim((string) ($file_exchange['base_url'] ?? '')), '/');
+        $file_exchange_token = trim((string) ($file_exchange['token'] ?? ''));
         $transport_instance_id = trim((string) ($transport['transport_instance_id'] ?? ''));
         $unknown_chat_text = trim((string) ($transport['unknown_chat_text'] ?? ''));
         $status_instruction_text = trim((string) ($transport['status_instruction_text'] ?? ''));
@@ -73,6 +78,14 @@ final class TelegramTransportConfig
 
         if ($transport_instance_id === '') {
             throw new RuntimeException('Missing required config value: transport.transport_instance_id');
+        }
+
+        if ($file_exchange_base_url === '') {
+            throw new RuntimeException('Missing required config value: file_exchange.base_url');
+        }
+
+        if ($file_exchange_token === '') {
+            throw new RuntimeException('Missing required config value: file_exchange.token');
         }
 
         if ($unknown_chat_text === '') {
@@ -115,6 +128,8 @@ final class TelegramTransportConfig
             telegram_bot_token: $telegram_bot_token,
             telegram_base_url: $telegram_base_url,
             telegram_endpoint_prefix: $telegram_endpoint_prefix,
+            file_exchange_base_url: $file_exchange_base_url,
+            file_exchange_token: $file_exchange_token,
             transport_instance_id: $transport_instance_id,
             outbound_poll_interval_ms: max(100, (int) ($transport['outbound_poll_interval_ms'] ?? 250)),
             telegram_poll_timeout_seconds: max(1, (int) ($transport['telegram_poll_timeout_seconds'] ?? 20)),

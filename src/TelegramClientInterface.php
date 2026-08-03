@@ -49,6 +49,19 @@ interface TelegramClientInterface
         ?int $message_thread_id = null
     ): void;
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function sendAnimation(
+        int|string $chat_id,
+        string $animation,
+        ?string $caption = null,
+        bool $disable_notification = false,
+        ?int $message_thread_id = null
+    ): array;
+
+    public function deleteMessage(int|string $chat_id, int $message_id): void;
+
     public function editForumTopic(
         int|string $chat_id,
         int $message_thread_id,
@@ -62,4 +75,11 @@ interface TelegramClientInterface
      * @return list<array<string, mixed>>
      */
     public function getUpdates(?int $offset, int $timeout, int $limit = 100): array;
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getFile(string $file_id): array;
+
+    public function downloadFile(string $file_path): string;
 }

@@ -16,8 +16,21 @@
 
 ## Telegram Boundary
 - Канонический operational mode: Telegram long polling через `getUpdates`.
-- На первом этапе поддерживаются только входящие `message.text`.
-- Неподдерживаемые update payload'ы игнорируются без fallback-ответов пользователю.
+- Поддержанные inbound media types:
+  - `document`
+  - `photo`
+  - `audio`
+  - `video`
+- Неподдерживаемые inbound media types:
+  - `voice`
+  - `video_note`
+  - любые остальные update payload'ы вне `message`
+- Если update не содержит ни поддержанного текста, ни поддержанного media, transport игнорирует его без fallback-ответов пользователю.
+- Для supported media transport обязан:
+  - получить `file_path` через Telegram Bot API `getFile`
+  - скачать бинарник по Telegram file endpoint
+  - загрузить файл в `files.ioannidis.ru`
+  - передать в `Router` только нормализованный текст и `attachments`, без локальных путей и без Telegram bot token leakage
 
 ## Runtime Config Contract
 - Канонический entrypoint: `bin/telegram-transport.php`
@@ -28,6 +41,8 @@
   - `telegram.bot_token`
   - `telegram.base_url`
   - `telegram.endpoint_prefix`
+  - `file_exchange.base_url`
+  - `file_exchange.token`
   - `transport.transport_instance_id`
   - `transport.outbound_poll_interval_ms`
   - `transport.telegram_poll_timeout_seconds`
@@ -57,7 +72,7 @@
 - Для разных thread одного `chat_id` используются разные `opaque`, но один и тот же tenant.
 
 ## Ingress Contract
-- Каждое поддержанное входящее `message.text` нормализуется в ingress event:
+- Каждое поддержанное входящее `message` нормализуется в ingress event:
 
 ```json
 {
@@ -65,7 +80,14 @@
   "opaque": "-100123:77",
   "kind": "message",
   "text": "user input",
-  "attachments": [],
+  "attachments": [
+    {
+      "type": "document",
+      "url": "https://files.ioannidis.ru/AbCd",
+      "name": "report.pdf",
+      "size_bytes": 12345
+    }
+  ],
   "meta": {
     "transport": "telegram",
     "chat_id": -100123,
@@ -79,8 +101,56 @@
 - `tenant` определяется только по `chat_id` через локальную БД.
 - Если для `chat_id` нет tenant mapping, transport отвечает текстом из `transport.unknown_chat_text` и не вызывает `Router`.
 - `kind` на первом этапе всегда `message`.
-- `attachments` на первом этапе всегда пустой массив.
+- `text` может быть пустым, если message содержит supported media без подписи.
+- Для message с text-only `attachments` равен пустому массиву.
+- Для message с supported media `attachments` содержит минимум по одному объекту на каждый принятый файл.
+- Для `photo` transport обязан брать largest-size variant.
+- Для `voice` и `video_note` transport не вызывает ни `getFile`, ни upload в file exchange, ни `Router`.
+- Если любой supported inbound file больше `20 * 1024 * 1024` bytes, transport обязан:
+  - немедленно ответить пользователю диагностикой
+  - не вызывать `Router`
+  - не вызывать `getFile`
+  - не скачивать бинарник
+  - не вызывать upload в file exchange
+- Если message содержит supported media и не отклонён по размеру, transport обязан сразу отправить временное Telegram animation-message:
+  - animation: `https://ioannidis.ru/dl/googler-loader.gif`
+  - caption: `Обработка файла(ов)`
+- После завершения upload всех attachment в file exchange transport обязан удалить это временное animation-message.
 - Если `Router` возвращает `accepted=false` и `action.type=reply_text`, transport отправляет `action.text` в Telegram как обычное сообщение.
+
+### Attachment Shape
+- Каждый attachment — JSON object с полями:
+  - `type`
+  - `url`
+  - `name`
+  - `size_bytes`
+- Допустимые значения `type`:
+  - `document`
+  - `image`
+  - `audio`
+  - `video`
+- `url` — URL, который вернул `files.ioannidis.ru`.
+- `name` — исходное имя файла из Telegram, если доступно; иначе transport генерирует стабильное имя по media type и `file_id`.
+- `size_bytes` — размер файла в байтах из Telegram/file exchange, если доступен.
+- Локальные filesystem path в `attachments` запрещены.
+- Telegram internal `file_id` и `file_path` в `attachments` наружу не публикуются.
+
+### File Exchange Boundary
+- Для supported inbound media transport обязан загружать бинарник в file exchange через:
+  - `POST {file_exchange.base_url}/up`
+- Аутентификация:
+  - `Authorization: Bearer <file_exchange.token>`
+- Request:
+  - `multipart/form-data`
+  - field name `file`
+- Response success:
+  - `200 OK`
+  - JSON object с полями:
+    - `file_id`
+    - `url`
+    - `filename`
+    - `size`
+- Ошибка upload считается operational failure и должна приводить к исключению без fallback.
 
 ## Local Commands
 - `Transport-Telegram` обрабатывает локально только `/status`.
@@ -193,6 +263,10 @@ return [
         'bot_token' => 'telegram-bot-token',
         'base_url' => 'https://api.telegram.org',
         'endpoint_prefix' => 'bot',
+    ],
+    'file_exchange' => [
+        'base_url' => 'https://files.ioannidis.ru',
+        'token' => 'file-exchange-token',
     ],
     'transport' => [
         'transport_instance_id' => 'telegram-main',

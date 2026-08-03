@@ -35,6 +35,10 @@ function testConfigRequiresTelegramToken(): void
             'base_url' => 'https://api.telegram.org',
             'endpoint_prefix' => 'bot',
         ],
+        'file_exchange' => [
+            'base_url' => 'https://files.ioannidis.ru',
+            'token' => 'exchange-token',
+        ],
         'transport' => [
             'transport_instance_id' => 'telegram-main',
             'outbound_poll_interval_ms' => 250,
@@ -57,6 +61,48 @@ function testConfigRequiresTelegramToken(): void
         fail('Expected missing telegram token to fail');
     } catch (RuntimeException $e) {
         assertSame('Missing required config value: telegram.bot_token', $e->getMessage(), 'missing telegram token');
+    } finally {
+        removeTestConfig($config_path);
+    }
+}
+
+function testConfigRequiresFileExchangeToken(): void
+{
+    $config_path = createTestConfig([
+        'router' => [
+            'base_url' => 'https://router.example',
+            'transport_token' => 'router-token',
+        ],
+        'telegram' => [
+            'bot_token' => 'telegram-token',
+            'base_url' => 'https://api.telegram.org',
+            'endpoint_prefix' => 'bot',
+        ],
+        'file_exchange' => [
+            'base_url' => 'https://files.ioannidis.ru',
+        ],
+        'transport' => [
+            'transport_instance_id' => 'telegram-main',
+            'outbound_poll_interval_ms' => 250,
+            'telegram_poll_timeout_seconds' => 20,
+            'unknown_chat_text' => 'unknown',
+            'status_instruction_text' => 'pin this',
+            'idle_status_text' => 'idle',
+        ],
+        'db' => [
+            'host' => '127.0.0.1',
+            'user' => 'user',
+            'pass' => 'pass',
+            'name' => 'db',
+            'prefix' => 'tt_',
+        ],
+    ]);
+
+    try {
+        TelegramTransportConfig::fromConfigPath($config_path);
+        fail('Expected missing file exchange token to fail');
+    } catch (RuntimeException $e) {
+        assertSame('Missing required config value: file_exchange.token', $e->getMessage(), 'missing file exchange token');
     } finally {
         removeTestConfig($config_path);
     }
@@ -85,6 +131,39 @@ function testNormalizerBuildsOpaqueWithThread(): void
     assertSame('hello', $message->text, 'trimmed text');
 }
 
+function testNormalizerBuildsInboundDocumentAttachment(): void
+{
+    $normalizer = new TelegramUpdateNormalizer();
+
+    $message = $normalizer->normalize([
+        'update_id' => 10,
+        'message' => [
+            'message_id' => 502,
+            'caption' => 'doc caption',
+            'chat' => [
+                'id' => 100,
+                'type' => 'private',
+            ],
+            'document' => [
+                'file_id' => 'doc-file-id',
+                'file_name' => 'report.pdf',
+                'mime_type' => 'application/pdf',
+                'file_size' => 12345,
+            ],
+        ],
+    ]);
+
+    assertSame('doc caption', $message->text, 'document caption');
+    assertSame([[
+        'telegram_type' => 'document',
+        'attachment_type' => 'document',
+        'file_id' => 'doc-file-id',
+        'name' => 'report.pdf',
+        'mime' => 'application/pdf',
+        'size_bytes' => 12345,
+    ]], $message->attachments, 'document attachment');
+}
+
 function testNormalizerRejectsUnsupportedUpdate(): void
 {
     $normalizer = new TelegramUpdateNormalizer();
@@ -97,6 +176,183 @@ function testNormalizerRejectsUnsupportedUpdate(): void
     ]);
 
     assertNull($message, 'unsupported update');
+}
+
+function testNormalizerRejectsVoiceOnlyUpdate(): void
+{
+    $normalizer = new TelegramUpdateNormalizer();
+
+    $message = $normalizer->normalize([
+        'update_id' => 11,
+        'message' => [
+            'message_id' => 503,
+            'chat' => [
+                'id' => 100,
+                'type' => 'private',
+            ],
+            'voice' => [
+                'file_id' => 'voice-file-id',
+                'file_size' => 123,
+            ],
+        ],
+    ]);
+
+    assertNull($message, 'voice update unsupported');
+}
+
+function testMediaMessageUploadsSupportedTelegramFilesAndForwardsAttachments(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $exchange = new FakeFileExchangeClient();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router,
+        $telegram,
+        new InMemoryTenantMap(['100' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore(),
+        $exchange
+    );
+
+    $telegram->file_results = [
+        'doc-file-id' => ['file_path' => 'documents/report.pdf'],
+        'photo-large' => ['file_path' => 'photos/large.jpg'],
+        'audio-file-id' => ['file_path' => 'audio/theme.mp3'],
+        'video-file-id' => ['file_path' => 'video/demo.mp4'],
+    ];
+    $telegram->downloaded_files = [
+        'documents/report.pdf' => 'PDF',
+        'photos/large.jpg' => 'JPEG',
+        'audio/theme.mp3' => 'MP3',
+        'video/demo.mp4' => 'MP4',
+    ];
+    $exchange->upload_results = [
+        ['file_id' => 'D1', 'url' => 'https://files.ioannidis.ru/D1', 'filename' => 'report.pdf', 'size' => 111],
+        ['file_id' => 'P1', 'url' => 'https://files.ioannidis.ru/P1', 'filename' => 'photo.jpg', 'size' => 222],
+        ['file_id' => 'A1', 'url' => 'https://files.ioannidis.ru/A1', 'filename' => 'theme.mp3', 'size' => 333],
+        ['file_id' => 'V1', 'url' => 'https://files.ioannidis.ru/V1', 'filename' => 'demo.mp4', 'size' => 444],
+    ];
+
+    $result = $transport->handleIncomingUpdate([
+        'update_id' => 30,
+        'message' => [
+            'message_id' => 930,
+            'caption' => 'files attached',
+            'chat' => [
+                'id' => 100,
+                'type' => 'private',
+            ],
+            'document' => [
+                'file_id' => 'doc-file-id',
+                'file_name' => 'report.pdf',
+                'mime_type' => 'application/pdf',
+                'file_size' => 12345,
+            ],
+            'photo' => [
+                [
+                    'file_id' => 'photo-small',
+                    'file_size' => 10,
+                    'width' => 32,
+                    'height' => 32,
+                ],
+                [
+                    'file_id' => 'photo-large',
+                    'file_size' => 20,
+                    'width' => 1280,
+                    'height' => 720,
+                ],
+            ],
+            'audio' => [
+                'file_id' => 'audio-file-id',
+                'file_name' => 'theme.mp3',
+                'mime_type' => 'audio/mpeg',
+                'file_size' => 67890,
+            ],
+            'video' => [
+                'file_id' => 'video-file-id',
+                'file_name' => 'demo.mp4',
+                'mime_type' => 'video/mp4',
+                'file_size' => 98765,
+            ],
+        ],
+    ]);
+
+    assertSame(true, $result['accepted'], 'media accepted');
+    assertSame('https://ioannidis.ru/dl/googler-loader.gif', $telegram->sent_animations[0]['animation'] ?? null, 'progress animation url');
+    assertSame('Обработка файла(ов)', $telegram->sent_animations[0]['caption'] ?? null, 'progress animation caption');
+    assertSame(3000, $telegram->deleted_messages[0]['message_id'] ?? null, 'progress animation deleted');
+    assertSame('files attached', $router->ingress_payloads[0]['text'] ?? null, 'media caption forwarded');
+    assertSame([
+        [
+            'type' => 'document',
+            'url' => 'https://files.ioannidis.ru/D1',
+            'name' => 'report.pdf',
+            'size_bytes' => 111,
+        ],
+        [
+            'type' => 'image',
+            'url' => 'https://files.ioannidis.ru/P1',
+            'name' => 'photo.jpg',
+            'size_bytes' => 222,
+        ],
+        [
+            'type' => 'audio',
+            'url' => 'https://files.ioannidis.ru/A1',
+            'name' => 'theme.mp3',
+            'size_bytes' => 333,
+        ],
+        [
+            'type' => 'video',
+            'url' => 'https://files.ioannidis.ru/V1',
+            'name' => 'demo.mp4',
+            'size_bytes' => 444,
+        ],
+    ], $router->ingress_payloads[0]['attachments'] ?? null, 'forwarded attachments');
+    assertSame(['doc-file-id', 'photo-large', 'audio-file-id', 'video-file-id'], $telegram->get_file_calls, 'getFile calls');
+    assertSame(['documents/report.pdf', 'photos/large.jpg', 'audio/theme.mp3', 'video/demo.mp4'], $telegram->download_file_calls, 'download calls');
+    assertSame(['report.pdf', 'photo-large.jpg', 'theme.mp3', 'demo.mp4'], array_column($exchange->uploads, 'filename'), 'uploaded filenames');
+}
+
+function testOversizedMediaMessageRepliesWithDiagnosticAndSkipsUpload(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $exchange = new FakeFileExchangeClient();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router,
+        $telegram,
+        new InMemoryTenantMap(['100' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore(),
+        $exchange
+    );
+
+    $result = $transport->handleIncomingUpdate([
+        'update_id' => 31,
+        'message' => [
+            'message_id' => 931,
+            'caption' => 'big file',
+            'chat' => [
+                'id' => 100,
+                'type' => 'private',
+            ],
+            'document' => [
+                'file_id' => 'big-doc-file-id',
+                'file_name' => 'big.bin',
+                'mime_type' => 'application/octet-stream',
+                'file_size' => (20 * 1024 * 1024) + 1,
+            ],
+        ],
+    ]);
+
+    assertSame(false, $result['accepted'], 'oversized media rejected');
+    assertSame('Файл больше 20 МБ. Отправьте файл меньше 20 МБ.', $result['messages'][0]['text'] ?? null, 'oversized media diagnostic');
+    assertSame([], $router->ingress_payloads, 'oversized media not forwarded');
+    assertSame([], $telegram->get_file_calls, 'oversized media skips getFile');
+    assertSame([], $telegram->download_file_calls, 'oversized media skips download');
+    assertSame([], $exchange->uploads, 'oversized media skips exchange upload');
 }
 
 function testStatusCommandDefaultsToEnabled(): void
@@ -983,6 +1239,8 @@ function buildConfig(): TelegramTransportConfig
         telegram_bot_token: 'telegram-token',
         telegram_base_url: 'https://api.telegram.org',
         telegram_endpoint_prefix: 'bot',
+        file_exchange_base_url: 'https://files.ioannidis.ru',
+        file_exchange_token: 'exchange-token',
         transport_instance_id: 'telegram-main',
         outbound_poll_interval_ms: 250,
         telegram_poll_timeout_seconds: 20,
@@ -1087,6 +1345,12 @@ class FakeTelegramClient implements TelegramClientInterface
     public array $chat_actions = [];
 
     /** @var list<array<string, mixed>> */
+    public array $sent_animations = [];
+
+    /** @var list<array<string, mixed>> */
+    public array $deleted_messages = [];
+
+    /** @var list<array<string, mixed>> */
     public array $edited_topics = [];
 
     /** @var list<array<string, mixed>> */
@@ -1095,6 +1359,14 @@ class FakeTelegramClient implements TelegramClientInterface
     public ?RuntimeException $edit_forum_topic_exception = null;
     public bool $throw_on_get_updates = false;
     public int $get_updates_calls = 0;
+    /** @var array<string, array<string, mixed>> */
+    public array $file_results = [];
+    /** @var array<string, string> */
+    public array $downloaded_files = [];
+    /** @var list<string> */
+    public array $get_file_calls = [];
+    /** @var list<string> */
+    public array $download_file_calls = [];
 
     public function setMyCommands(array $commands): void
     {
@@ -1176,6 +1448,42 @@ class FakeTelegramClient implements TelegramClientInterface
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function sendAnimation(
+        int|string $chat_id,
+        string $animation,
+        ?string $caption = null,
+        bool $disable_notification = false,
+        ?int $message_thread_id = null
+    ): array {
+        $message_id = count($this->sent_animations) + 3000;
+        $this->sent_animations[] = [
+            'chat_id' => $chat_id,
+            'animation' => $animation,
+            'caption' => $caption,
+            'disable_notification' => $disable_notification,
+            'message_thread_id' => $message_thread_id,
+            'message_id' => $message_id,
+        ];
+
+        return [
+            'ok' => true,
+            'result' => [
+                'message_id' => $message_id,
+            ],
+        ];
+    }
+
+    public function deleteMessage(int|string $chat_id, int $message_id): void
+    {
+        $this->deleted_messages[] = [
+            'chat_id' => $chat_id,
+            'message_id' => $message_id,
+        ];
+    }
+
     public function editForumTopic(int|string $chat_id, int $message_thread_id, ?string $name = null, ?string $icon_custom_emoji_id = null): void
     {
         if ($this->edit_forum_topic_exception !== null) {
@@ -1206,6 +1514,28 @@ class FakeTelegramClient implements TelegramClientInterface
         }
 
         return [];
+    }
+
+    public function getFile(string $file_id): array
+    {
+        $this->get_file_calls[] = $file_id;
+
+        if (!isset($this->file_results[$file_id])) {
+            throw new RuntimeException('missing file result for ' . $file_id);
+        }
+
+        return $this->file_results[$file_id];
+    }
+
+    public function downloadFile(string $file_path): string
+    {
+        $this->download_file_calls[] = $file_path;
+
+        if (!array_key_exists($file_path, $this->downloaded_files)) {
+            throw new RuntimeException('missing downloaded file for ' . $file_path);
+        }
+
+        return $this->downloaded_files[$file_path];
     }
 }
 
@@ -1402,9 +1732,38 @@ final class RateLimitedTelegramClient extends FakeTelegramClient
     }
 }
 
+final class FakeFileExchangeClient implements \CodexMultitenant\TransportTelegram\FileExchangeClientInterface
+{
+    /** @var list<array{file_path:string, filename:string, mime:?string}> */
+    public array $uploads = [];
+
+    /** @var list<array<string, mixed>> */
+    public array $upload_results = [];
+
+    public function uploadFile(string $file_path, string $filename, ?string $mime = null): array
+    {
+        $this->uploads[] = [
+            'file_path' => $file_path,
+            'filename' => $filename,
+            'mime' => $mime,
+        ];
+
+        if ($this->upload_results === []) {
+            throw new RuntimeException('missing file exchange upload result');
+        }
+
+        return array_shift($this->upload_results);
+    }
+}
+
 testConfigRequiresTelegramToken();
+testConfigRequiresFileExchangeToken();
 testNormalizerBuildsOpaqueWithThread();
+testNormalizerBuildsInboundDocumentAttachment();
 testNormalizerRejectsUnsupportedUpdate();
+testNormalizerRejectsVoiceOnlyUpdate();
+testMediaMessageUploadsSupportedTelegramFilesAndForwardsAttachments();
+testOversizedMediaMessageRepliesWithDiagnosticAndSkipsUpload();
 testStatusCommandDefaultsToEnabled();
 testUnknownChatReplySkipsRouterIngress();
 testCommentarySendsTypingAfterMessage();
