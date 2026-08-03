@@ -279,6 +279,7 @@ function testMediaMessageUploadsSupportedTelegramFilesAndForwardsAttachments(): 
     ]);
 
     assertSame(true, $result['accepted'], 'media accepted');
+    assertTrue(str_ends_with((string) ($telegram->sent_animations[0]['animation'] ?? ''), '/config/googler-loader.gif'), 'progress animation asset path');
     assertSame(true, $telegram->sent_animations[0]['file_exists'] ?? null, 'progress animation uploaded as file');
     assertTrue(($telegram->sent_animations[0]['content_length'] ?? 0) > 0, 'progress animation file content captured');
     assertSame('Обработка файла(ов)', $telegram->sent_animations[0]['caption'] ?? null, 'progress animation caption');
