@@ -205,7 +205,7 @@ function testNormalizerBuildsInboundVoiceAttachment(): void
     assertSame('', $message->text, 'voice text');
     assertSame([[
         'telegram_type' => 'voice',
-        'attachment_type' => 'audio',
+        'attachment_type' => 'voice',
         'file_id' => 'voice-file-id',
         'mime' => 'audio/ogg',
         'size_bytes' => 123,
@@ -328,7 +328,7 @@ function testMediaMessageUploadsSupportedTelegramFilesAndForwardsAttachments(): 
             'size_bytes' => 444,
         ],
         [
-            'type' => 'audio',
+            'type' => 'voice',
             'url' => 'https://files.ioannidis.ru/VO1',
             'name' => 'voice-file-id.ogg',
             'size_bytes' => 555,

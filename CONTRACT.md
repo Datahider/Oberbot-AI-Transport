@@ -104,6 +104,7 @@
 - `text` может быть пустым, если message содержит supported media без подписи.
 - Для message с text-only `attachments` равен пустому массиву.
 - Для message с supported media `attachments` содержит минимум по одному объекту на каждый принятый файл.
+- Telegram `audio` передаётся как `attachments[].type = audio`, Telegram `voice` — как `attachments[].type = voice`.
 - Для `photo` transport обязан брать largest-size variant.
 - Для `video_note` transport не вызывает ни `getFile`, ни upload в file exchange, ни `Router`.
 - Если любой supported inbound file больше `20 * 1024 * 1024` bytes, transport обязан:
