@@ -221,6 +221,8 @@
 - Для каждого outbound event transport дополнительно фильтрует по точному `opaque`.
 
 ### Outbound Rendering
+- Transport обрабатывает только явно перечисленные ниже `kind`.
+- Любой неизвестный `kind` молча игнорируется: Telegram API не вызывается, fallback на `final` запрещён, delivery не считается ошибочным.
 - `kind=final`:
   - markdown от core конвертируется в Telegram HTML через `fastvolt/markdown`
   - затем применяется существующая процедура очистки несовместимых тегов
