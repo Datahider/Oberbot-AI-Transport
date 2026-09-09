@@ -100,6 +100,11 @@ final class TelegramUpdateNormalizer
             $attachments[] = $video;
         }
 
+        $voice = $this->normalizeFileAttachment($message['voice'] ?? null, 'voice', 'audio');
+        if ($voice !== null) {
+            $attachments[] = $voice;
+        }
+
         return $attachments;
     }
 

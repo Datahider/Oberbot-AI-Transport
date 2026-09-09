@@ -645,6 +645,7 @@ final class TelegramTransport
             'photo' => $file_id . '.jpg',
             'audio' => $file_id . '.audio',
             'video' => $file_id . '.video',
+            'voice' => $file_id . '.ogg',
             default => $file_id . '.bin',
         };
     }

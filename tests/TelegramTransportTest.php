@@ -178,7 +178,7 @@ function testNormalizerRejectsUnsupportedUpdate(): void
     assertNull($message, 'unsupported update');
 }
 
-function testNormalizerRejectsVoiceOnlyUpdate(): void
+function testNormalizerBuildsInboundVoiceAttachment(): void
 {
     $normalizer = new TelegramUpdateNormalizer();
 
@@ -193,11 +193,23 @@ function testNormalizerRejectsVoiceOnlyUpdate(): void
             'voice' => [
                 'file_id' => 'voice-file-id',
                 'file_size' => 123,
+                'mime_type' => 'audio/ogg',
             ],
         ],
     ]);
 
-    assertNull($message, 'voice update unsupported');
+    if ($message === null) {
+        fail('Expected voice update to be normalized');
+    }
+
+    assertSame('', $message->text, 'voice text');
+    assertSame([[
+        'telegram_type' => 'voice',
+        'attachment_type' => 'audio',
+        'file_id' => 'voice-file-id',
+        'mime' => 'audio/ogg',
+        'size_bytes' => 123,
+    ]], $message->attachments, 'voice attachment');
 }
 
 function testMediaMessageUploadsSupportedTelegramFilesAndForwardsAttachments(): void
@@ -220,18 +232,21 @@ function testMediaMessageUploadsSupportedTelegramFilesAndForwardsAttachments(): 
         'photo-large' => ['file_path' => 'photos/large.jpg'],
         'audio-file-id' => ['file_path' => 'audio/theme.mp3'],
         'video-file-id' => ['file_path' => 'video/demo.mp4'],
+        'voice-file-id' => ['file_path' => 'voice/message.oga'],
     ];
     $telegram->downloaded_files = [
         'documents/report.pdf' => 'PDF',
         'photos/large.jpg' => 'JPEG',
         'audio/theme.mp3' => 'MP3',
         'video/demo.mp4' => 'MP4',
+        'voice/message.oga' => 'OGG',
     ];
     $exchange->upload_results = [
         ['file_id' => 'D1', 'url' => 'https://files.ioannidis.ru/D1', 'filename' => 'report.pdf', 'size' => 111],
         ['file_id' => 'P1', 'url' => 'https://files.ioannidis.ru/P1', 'filename' => 'photo.jpg', 'size' => 222],
         ['file_id' => 'A1', 'url' => 'https://files.ioannidis.ru/A1', 'filename' => 'theme.mp3', 'size' => 333],
         ['file_id' => 'V1', 'url' => 'https://files.ioannidis.ru/V1', 'filename' => 'demo.mp4', 'size' => 444],
+        ['file_id' => 'VO1', 'url' => 'https://files.ioannidis.ru/VO1', 'filename' => 'voice-file-id.ogg', 'size' => 555],
     ];
 
     $result = $transport->handleIncomingUpdate([
@@ -275,6 +290,11 @@ function testMediaMessageUploadsSupportedTelegramFilesAndForwardsAttachments(): 
                 'mime_type' => 'video/mp4',
                 'file_size' => 98765,
             ],
+            'voice' => [
+                'file_id' => 'voice-file-id',
+                'mime_type' => 'audio/ogg',
+                'file_size' => 54321,
+            ],
         ],
     ]);
 
@@ -307,10 +327,16 @@ function testMediaMessageUploadsSupportedTelegramFilesAndForwardsAttachments(): 
             'name' => 'demo.mp4',
             'size_bytes' => 444,
         ],
+        [
+            'type' => 'audio',
+            'url' => 'https://files.ioannidis.ru/VO1',
+            'name' => 'voice-file-id.ogg',
+            'size_bytes' => 555,
+        ],
     ], $router->ingress_payloads[0]['attachments'] ?? null, 'forwarded attachments');
-    assertSame(['doc-file-id', 'photo-large', 'audio-file-id', 'video-file-id'], $telegram->get_file_calls, 'getFile calls');
-    assertSame(['documents/report.pdf', 'photos/large.jpg', 'audio/theme.mp3', 'video/demo.mp4'], $telegram->download_file_calls, 'download calls');
-    assertSame(['report.pdf', 'photo-large.jpg', 'theme.mp3', 'demo.mp4'], array_column($exchange->uploads, 'filename'), 'uploaded filenames');
+    assertSame(['doc-file-id', 'photo-large', 'audio-file-id', 'video-file-id', 'voice-file-id'], $telegram->get_file_calls, 'getFile calls');
+    assertSame(['documents/report.pdf', 'photos/large.jpg', 'audio/theme.mp3', 'video/demo.mp4', 'voice/message.oga'], $telegram->download_file_calls, 'download calls');
+    assertSame(['report.pdf', 'photo-large.jpg', 'theme.mp3', 'demo.mp4', 'voice-file-id.ogg'], array_column($exchange->uploads, 'filename'), 'uploaded filenames');
 }
 
 function testOversizedMediaMessageRepliesWithDiagnosticAndSkipsUpload(): void
@@ -1762,7 +1788,7 @@ testConfigRequiresFileExchangeToken();
 testNormalizerBuildsOpaqueWithThread();
 testNormalizerBuildsInboundDocumentAttachment();
 testNormalizerRejectsUnsupportedUpdate();
-testNormalizerRejectsVoiceOnlyUpdate();
+testNormalizerBuildsInboundVoiceAttachment();
 testMediaMessageUploadsSupportedTelegramFilesAndForwardsAttachments();
 testOversizedMediaMessageRepliesWithDiagnosticAndSkipsUpload();
 testStatusCommandDefaultsToEnabled();
