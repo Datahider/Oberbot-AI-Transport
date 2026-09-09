@@ -11,7 +11,7 @@ final class StatusState
         public readonly bool $enabled,
         public readonly ?int $message_id,
         public readonly ?string $last_text,
-        public readonly bool $voice_quote_enabled = true
+        public readonly bool $voice_quote_enabled = false
     ) {
     }
 

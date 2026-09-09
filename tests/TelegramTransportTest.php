@@ -494,12 +494,14 @@ function testLongCommentaryFallsBackToDocumentWithCaption(): void
 function testTranscriptSendsExpandableEscapedQuote(): void
 {
     $telegram = new FakeTelegramClient();
+    $status = new InMemoryStatusStateStore();
+    $status->save(new StatusState('100', true, null, null, true));
     $transport = new TelegramTransport(
         buildConfig(),
         new FakeRouterClient(),
         $telegram,
         new InMemoryTenantMap(['100' => 'user@server']),
-        new InMemoryStatusStateStore(),
+        $status,
         new InMemoryIgnoreStateStore()
     );
 
@@ -570,8 +572,8 @@ function testVoiceQuoteCommandsControlTranscriptForExactOpaque(): void
     $transport->deliverOutboundEvent(new OutboundEvent(145, '-100123:77', 'transcript', 'hidden', [], []));
     assertSame([], $telegram->sent_messages, 'silent topic transcript hidden');
 
-    $transport->deliverOutboundEvent(new OutboundEvent(146, '-100123:78', 'transcript', 'visible', [], []));
-    assertSame('<blockquote expandable>visible</blockquote>', $telegram->sent_messages[0]['text'] ?? null, 'other topic transcript visible');
+    $transport->deliverOutboundEvent(new OutboundEvent(146, '-100123:78', 'transcript', 'hidden by default', [], []));
+    assertSame([], $telegram->sent_messages, 'other topic transcript hidden by default');
 
     $telegram->sent_messages = [];
     $quote = $transport->handleIncomingUpdate([
