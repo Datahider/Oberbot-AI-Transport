@@ -18,6 +18,18 @@ final class TelegramTextRenderer
         return '<i>' . $this->markdownToTelegramHtml($markdown) . '</i>';
     }
 
+    public function renderTranscript(string $text): string
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return '';
+        }
+
+        return '<blockquote expandable>'
+            . htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            . '</blockquote>';
+    }
+
     private function markdownToTelegramHtml(string $markdown): string
     {
         $markdown = trim($markdown);

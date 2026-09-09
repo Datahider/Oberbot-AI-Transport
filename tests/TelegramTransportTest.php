@@ -491,6 +491,56 @@ function testLongCommentaryFallsBackToDocumentWithCaption(): void
     assertSame('typing', $telegram->chat_actions[0]['action'] ?? null, 'typing after long commentary document');
 }
 
+function testTranscriptSendsExpandableEscapedQuote(): void
+{
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        new FakeRouterClient(),
+        $telegram,
+        new InMemoryTenantMap(['100' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+
+    $transport->deliverOutboundEvent(new OutboundEvent(
+        event_id: 142,
+        opaque: '100',
+        kind: 'transcript',
+        text: 'Привет <мир> & **markdown**',
+        attachments: [],
+        meta: []
+    ));
+
+    assertSame('<blockquote expandable>Привет &lt;мир&gt; &amp; **markdown**</blockquote>', $telegram->sent_messages[0]['text'] ?? null, 'transcript text');
+    assertSame('HTML', $telegram->sent_messages[0]['parse_mode'] ?? null, 'transcript parse mode');
+}
+
+function testUnknownOutboundKindIsSilentlyIgnored(): void
+{
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        new FakeRouterClient(),
+        $telegram,
+        new InMemoryTenantMap([]),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+
+    $transport->deliverOutboundEvent(new OutboundEvent(
+        event_id: 143,
+        opaque: '',
+        kind: 'future-kind',
+        text: 'must not be delivered',
+        attachments: [],
+        meta: []
+    ));
+
+    assertSame([], $telegram->sent_messages, 'unknown kind messages');
+    assertSame([], $telegram->chat_actions, 'unknown kind chat actions');
+}
+
 function testRendererRemovesUnsupportedTableTags(): void
 {
     $renderer = new TelegramTextRenderer();
@@ -1795,6 +1845,8 @@ testStatusCommandDefaultsToEnabled();
 testUnknownChatReplySkipsRouterIngress();
 testCommentarySendsTypingAfterMessage();
 testLongCommentaryFallsBackToDocumentWithCaption();
+testTranscriptSendsExpandableEscapedQuote();
+testUnknownOutboundKindIsSilentlyIgnored();
 testRendererRemovesUnsupportedTableTags();
 testRendererEscapesRawAngleBracketsBeforeMarkdownConversion();
 testIngressRunnerRegistersBotCommandsBeforePolling();

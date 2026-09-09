@@ -195,6 +195,10 @@ final class TelegramTransport
 
     public function deliverOutboundEvent(OutboundEvent $event): void
     {
+        if (!in_array($event->kind, ['final', 'commentary', 'transcript', 'status', 'heartbeat'], true)) {
+            return;
+        }
+
         [$chat_id, $thread_id] = $this->resolveOpaque($event->opaque);
         RuntimeLog::info('Dispatching outbound event to Telegram', [
             'event_id' => $event->event_id,
@@ -217,6 +221,14 @@ final class TelegramTransport
 
         if ($event->kind === 'status') {
             $this->deliverStatus($event, $chat_id, $thread_id);
+            return;
+        }
+
+        if ($event->kind === 'transcript') {
+            $text = $this->renderer->renderTranscript($event->text);
+            if ($text !== '') {
+                $this->sendRenderedOutbound($chat_id, $thread_id, $text, $event->text, false);
+            }
             return;
         }
 
