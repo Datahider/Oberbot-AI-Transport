@@ -23,7 +23,8 @@ final class DbStatusStateStore implements StatusStateStoreInterface
             opaque: $opaque,
             enabled: (bool) $row->enabled,
             message_id: $message_id !== null ? (int) $message_id : null,
-            last_text: $row->last_text !== null ? (string) $row->last_text : null
+            last_text: $row->last_text !== null ? (string) $row->last_text : null,
+            voice_quote_enabled: (bool) $row->voice_quote_enabled
         );
     }
 
@@ -39,6 +40,7 @@ final class DbStatusStateStore implements StatusStateStoreInterface
         $row->enabled = $state->enabled ? 1 : 0;
         $row->message_id = $state->message_id;
         $row->last_text = $state->last_text;
+        $row->voice_quote_enabled = $state->voice_quote_enabled ? 1 : 0;
         $row->write();
     }
 }

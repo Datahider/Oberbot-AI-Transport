@@ -61,6 +61,22 @@ final class TelegramTransport
             ];
         }
 
+        $voice_quote_enabled = $this->parseVoiceQuoteCommand($message->text);
+        if ($voice_quote_enabled !== null) {
+            $state = $this->status_store->load($message->opaque)->withVoiceQuoteEnabled($voice_quote_enabled);
+            $this->status_store->save($state);
+
+            return [
+                'accepted' => true,
+                'messages' => [$this->sendTextReply(
+                    $message,
+                    'Цитата голоса: ' . ($voice_quote_enabled ? 'on' : 'off'),
+                    null,
+                    true
+                )],
+            ];
+        }
+
         if ($this->isIgnoreCommand($message->text)) {
             $scope = $this->ingressScopeFor($message);
             $this->ignore_store->setIgnored($scope, true);
@@ -225,6 +241,9 @@ final class TelegramTransport
         }
 
         if ($event->kind === 'transcript') {
+            if (!$this->status_store->load($event->opaque)->voice_quote_enabled) {
+                return;
+            }
             $text = $this->renderer->renderTranscript($event->text);
             if ($text !== '') {
                 $this->sendRenderedOutbound($chat_id, $thread_id, $text, $event->text, false);
@@ -387,6 +406,19 @@ final class TelegramTransport
         }
 
         return isset($matches[1]) ? strtolower((string) $matches[1]) : '';
+    }
+
+    private function parseVoiceQuoteCommand(string $text): ?bool
+    {
+        if (preg_match('/^\/voicequote(?:@\S+)?\s*$/ui', trim($text)) === 1) {
+            return true;
+        }
+
+        if (preg_match('/^\/voicesilent(?:@\S+)?\s*$/ui', trim($text)) === 1) {
+            return false;
+        }
+
+        return null;
     }
 
     private function isIgnoreCommand(string $text): bool

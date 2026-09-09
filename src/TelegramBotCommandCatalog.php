@@ -25,6 +25,14 @@ final class TelegramBotCommandCatalog
                 'description' => 'Снять игнор с этого чата или топика',
             ],
             [
+                'command' => 'voicequote',
+                'description' => 'Показывать расшифровку голоса',
+            ],
+            [
+                'command' => 'voicesilent',
+                'description' => 'Скрывать расшифровку голоса',
+            ],
+            [
                 'command' => 'note',
                 'description' => 'Сохранить заметку без отправки дальше',
             ],

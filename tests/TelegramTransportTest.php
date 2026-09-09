@@ -541,6 +541,56 @@ function testUnknownOutboundKindIsSilentlyIgnored(): void
     assertSame([], $telegram->chat_actions, 'unknown kind chat actions');
 }
 
+function testVoiceQuoteCommandsControlTranscriptForExactOpaque(): void
+{
+    $telegram = new FakeTelegramClient();
+    $status = new InMemoryStatusStateStore();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        new FakeRouterClient(),
+        $telegram,
+        new InMemoryTenantMap(['-100123' => 'user@server']),
+        $status,
+        new InMemoryIgnoreStateStore()
+    );
+
+    $silent = $transport->handleIncomingUpdate([
+        'update_id' => 144,
+        'message' => [
+            'message_id' => 944,
+            'message_thread_id' => 77,
+            'text' => '/voicesilent',
+            'chat' => ['id' => -100123, 'type' => 'supergroup'],
+        ],
+    ]);
+    assertSame(true, $silent['accepted'], 'voicesilent accepted');
+    assertSame('Цитата голоса: off', $silent['messages'][0]['text'] ?? null, 'voicesilent reply');
+
+    $telegram->sent_messages = [];
+    $transport->deliverOutboundEvent(new OutboundEvent(145, '-100123:77', 'transcript', 'hidden', [], []));
+    assertSame([], $telegram->sent_messages, 'silent topic transcript hidden');
+
+    $transport->deliverOutboundEvent(new OutboundEvent(146, '-100123:78', 'transcript', 'visible', [], []));
+    assertSame('<blockquote expandable>visible</blockquote>', $telegram->sent_messages[0]['text'] ?? null, 'other topic transcript visible');
+
+    $telegram->sent_messages = [];
+    $quote = $transport->handleIncomingUpdate([
+        'update_id' => 147,
+        'message' => [
+            'message_id' => 947,
+            'message_thread_id' => 77,
+            'text' => '/voicequote',
+            'chat' => ['id' => -100123, 'type' => 'supergroup'],
+        ],
+    ]);
+    assertSame(true, $quote['accepted'], 'voicequote accepted');
+    assertSame('Цитата голоса: on', $quote['messages'][0]['text'] ?? null, 'voicequote reply');
+
+    $telegram->sent_messages = [];
+    $transport->deliverOutboundEvent(new OutboundEvent(148, '-100123:77', 'transcript', 'shown again', [], []));
+    assertSame('<blockquote expandable>shown again</blockquote>', $telegram->sent_messages[0]['text'] ?? null, 're-enabled transcript visible');
+}
+
 function testRendererRemovesUnsupportedTableTags(): void
 {
     $renderer = new TelegramTextRenderer();
@@ -1847,6 +1897,7 @@ testCommentarySendsTypingAfterMessage();
 testLongCommentaryFallsBackToDocumentWithCaption();
 testTranscriptSendsExpandableEscapedQuote();
 testUnknownOutboundKindIsSilentlyIgnored();
+testVoiceQuoteCommandsControlTranscriptForExactOpaque();
 testRendererRemovesUnsupportedTableTags();
 testRendererEscapesRawAngleBracketsBeforeMarkdownConversion();
 testIngressRunnerRegistersBotCommandsBeforePolling();
