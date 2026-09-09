@@ -494,14 +494,12 @@ function testLongCommentaryFallsBackToDocumentWithCaption(): void
 function testTranscriptSendsExpandableEscapedQuote(): void
 {
     $telegram = new FakeTelegramClient();
-    $status = new InMemoryStatusStateStore();
-    $status->save(new StatusState('100', true, null, null, true));
     $transport = new TelegramTransport(
         buildConfig(),
         new FakeRouterClient(),
         $telegram,
         new InMemoryTenantMap(['100' => 'user@server']),
-        $status,
+        new InMemoryStatusStateStore(),
         new InMemoryIgnoreStateStore()
     );
 
@@ -543,7 +541,7 @@ function testUnknownOutboundKindIsSilentlyIgnored(): void
     assertSame([], $telegram->chat_actions, 'unknown kind chat actions');
 }
 
-function testVoiceQuoteCommandsControlTranscriptForExactOpaque(): void
+function testVoiceQuoteCommandsSupportGroupInheritanceAndTopicOverride(): void
 {
     $telegram = new FakeTelegramClient();
     $status = new InMemoryStatusStateStore();
@@ -560,7 +558,6 @@ function testVoiceQuoteCommandsControlTranscriptForExactOpaque(): void
         'update_id' => 144,
         'message' => [
             'message_id' => 944,
-            'message_thread_id' => 77,
             'text' => '/voicesilent',
             'chat' => ['id' => -100123, 'type' => 'supergroup'],
         ],
@@ -570,12 +567,8 @@ function testVoiceQuoteCommandsControlTranscriptForExactOpaque(): void
 
     $telegram->sent_messages = [];
     $transport->deliverOutboundEvent(new OutboundEvent(145, '-100123:77', 'transcript', 'hidden', [], []));
-    assertSame([], $telegram->sent_messages, 'silent topic transcript hidden');
+    assertSame([], $telegram->sent_messages, 'topic inherits silent group');
 
-    $transport->deliverOutboundEvent(new OutboundEvent(146, '-100123:78', 'transcript', 'hidden by default', [], []));
-    assertSame([], $telegram->sent_messages, 'other topic transcript hidden by default');
-
-    $telegram->sent_messages = [];
     $quote = $transport->handleIncomingUpdate([
         'update_id' => 147,
         'message' => [
@@ -590,7 +583,22 @@ function testVoiceQuoteCommandsControlTranscriptForExactOpaque(): void
 
     $telegram->sent_messages = [];
     $transport->deliverOutboundEvent(new OutboundEvent(148, '-100123:77', 'transcript', 'shown again', [], []));
-    assertSame('<blockquote expandable>shown again</blockquote>', $telegram->sent_messages[0]['text'] ?? null, 're-enabled transcript visible');
+    assertSame('<blockquote expandable>shown again</blockquote>', $telegram->sent_messages[0]['text'] ?? null, 'topic override visible');
+
+    $global = $transport->handleIncomingUpdate([
+        'update_id' => 149,
+        'message' => [
+            'message_id' => 949,
+            'message_thread_id' => 77,
+            'text' => '/voiceglobal',
+            'chat' => ['id' => -100123, 'type' => 'supergroup'],
+        ],
+    ]);
+    assertSame('Цитата голоса: global', $global['messages'][0]['text'] ?? null, 'voiceglobal reply');
+
+    $telegram->sent_messages = [];
+    $transport->deliverOutboundEvent(new OutboundEvent(150, '-100123:77', 'transcript', 'hidden again', [], []));
+    assertSame([], $telegram->sent_messages, 'topic inherits group again');
 }
 
 function testRendererRemovesUnsupportedTableTags(): void
@@ -1899,7 +1907,7 @@ testCommentarySendsTypingAfterMessage();
 testLongCommentaryFallsBackToDocumentWithCaption();
 testTranscriptSendsExpandableEscapedQuote();
 testUnknownOutboundKindIsSilentlyIgnored();
-testVoiceQuoteCommandsControlTranscriptForExactOpaque();
+testVoiceQuoteCommandsSupportGroupInheritanceAndTopicOverride();
 testRendererRemovesUnsupportedTableTags();
 testRendererEscapesRawAngleBracketsBeforeMarkdownConversion();
 testIngressRunnerRegistersBotCommandsBeforePolling();

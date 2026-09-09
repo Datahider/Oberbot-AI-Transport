@@ -61,8 +61,13 @@ final class TelegramTransport
             ];
         }
 
-        $voice_quote_enabled = $this->parseVoiceQuoteCommand($message->text);
-        if ($voice_quote_enabled !== null) {
+        $voice_quote_command = $this->parseVoiceQuoteCommand($message->text);
+        if ($voice_quote_command !== null) {
+            $voice_quote_enabled = match ($voice_quote_command) {
+                'quote' => true,
+                'silent' => false,
+                'global' => null,
+            };
             $state = $this->status_store->load($message->opaque)->withVoiceQuoteEnabled($voice_quote_enabled);
             $this->status_store->save($state);
 
@@ -70,7 +75,11 @@ final class TelegramTransport
                 'accepted' => true,
                 'messages' => [$this->sendTextReply(
                     $message,
-                    'Цитата голоса: ' . ($voice_quote_enabled ? 'on' : 'off'),
+                    'Цитата голоса: ' . match ($voice_quote_command) {
+                        'quote' => 'on',
+                        'silent' => 'off',
+                        'global' => 'global',
+                    },
                     null,
                     true
                 )],
@@ -241,7 +250,7 @@ final class TelegramTransport
         }
 
         if ($event->kind === 'transcript') {
-            if (!$this->status_store->load($event->opaque)->voice_quote_enabled) {
+            if (!$this->isVoiceQuoteEnabled($event->opaque)) {
                 return;
             }
             $text = $this->renderer->renderTranscript($event->text);
@@ -408,17 +417,39 @@ final class TelegramTransport
         return isset($matches[1]) ? strtolower((string) $matches[1]) : '';
     }
 
-    private function parseVoiceQuoteCommand(string $text): ?bool
+    private function parseVoiceQuoteCommand(string $text): ?string
     {
         if (preg_match('/^\/voicequote(?:@\S+)?\s*$/ui', trim($text)) === 1) {
-            return true;
+            return 'quote';
         }
 
         if (preg_match('/^\/voicesilent(?:@\S+)?\s*$/ui', trim($text)) === 1) {
-            return false;
+            return 'silent';
+        }
+
+        if (preg_match('/^\/voiceglobal(?:@\S+)?\s*$/ui', trim($text)) === 1) {
+            return 'global';
         }
 
         return null;
+    }
+
+    private function isVoiceQuoteEnabled(string $opaque): bool
+    {
+        $local = $this->status_store->load($opaque)->voice_quote_enabled;
+        if ($local !== null) {
+            return $local;
+        }
+
+        if (str_contains($opaque, ':')) {
+            [$chat_id] = explode(':', $opaque, 2);
+            $group = $this->status_store->load($chat_id)->voice_quote_enabled;
+            if ($group !== null) {
+                return $group;
+            }
+        }
+
+        return true;
     }
 
     private function isIgnoreCommand(string $text): bool

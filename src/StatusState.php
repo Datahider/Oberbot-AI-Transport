@@ -11,7 +11,7 @@ final class StatusState
         public readonly bool $enabled,
         public readonly ?int $message_id,
         public readonly ?string $last_text,
-        public readonly bool $voice_quote_enabled = false
+        public readonly ?bool $voice_quote_enabled = null
     ) {
     }
 
@@ -25,7 +25,7 @@ final class StatusState
         return new self($this->opaque, $enabled, $this->message_id, $this->last_text, $this->voice_quote_enabled);
     }
 
-    public function withVoiceQuoteEnabled(bool $enabled): self
+    public function withVoiceQuoteEnabled(?bool $enabled): self
     {
         return new self($this->opaque, $this->enabled, $this->message_id, $this->last_text, $enabled);
     }

@@ -14,7 +14,7 @@ final class OpaqueStatusState extends DBObject
         'enabled' => 'TINYINT(1) NOT NULL DEFAULT 1 COMMENT "Status enabled"',
         'message_id' => 'BIGINT UNSIGNED NULL COMMENT "Telegram status message id"',
         'last_text' => 'TEXT NULL COMMENT "Last status text"',
-        'voice_quote_enabled' => 'TINYINT(1) NOT NULL DEFAULT 0 COMMENT "Voice transcript quote enabled"',
+        'voice_quote_override' => 'TINYINT(1) NULL DEFAULT NULL COMMENT "Voice transcript quote override"',
         'PRIMARY KEY' => 'opaque',
     ];
 

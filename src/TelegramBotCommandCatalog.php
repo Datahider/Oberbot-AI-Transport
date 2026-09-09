@@ -33,6 +33,10 @@ final class TelegramBotCommandCatalog
                 'description' => 'Скрывать расшифровку голоса',
             ],
             [
+                'command' => 'voiceglobal',
+                'description' => 'Наследовать настройку группы',
+            ],
+            [
                 'command' => 'note',
                 'description' => 'Сохранить заметку без отправки дальше',
             ],
