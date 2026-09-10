@@ -220,7 +220,7 @@ final class TelegramTransport
 
     public function deliverOutboundEvent(OutboundEvent $event): void
     {
-        if (!in_array($event->kind, ['final', 'commentary', 'transcript', 'status', 'heartbeat'], true)) {
+        if (!in_array($event->kind, ['final', 'commentary', 'transcript', 'status', 'heartbeat', 'document'], true)) {
             return;
         }
 
@@ -246,6 +246,11 @@ final class TelegramTransport
 
         if ($event->kind === 'status') {
             $this->deliverStatus($event, $chat_id, $thread_id);
+            return;
+        }
+
+        if ($event->kind === 'document') {
+            $this->deliverDocument($event, $chat_id, $thread_id);
             return;
         }
 
@@ -293,6 +298,39 @@ final class TelegramTransport
             'thread_id' => $thread_id,
             'message_id' => $result['result']['message_id'] ?? $result['message_id'] ?? null,
         ]);
+    }
+
+    private function deliverDocument(OutboundEvent $event, string $chat_id, ?int $thread_id): void
+    {
+        if ($this->file_exchange === null) {
+            throw new RuntimeException('File exchange client is required for document delivery');
+        }
+        if (count($event->attachments) !== 1 || !is_array($event->attachments[0])) {
+            throw new RuntimeException('Document outbound requires exactly one attachment');
+        }
+
+        $attachment = $event->attachments[0];
+        $file_id = trim((string) ($attachment['file_id'] ?? ''));
+        $filename = trim((string) ($attachment['name'] ?? ''));
+        if ($file_id === '' || $filename === '') {
+            throw new RuntimeException('Document attachment requires file_id and name');
+        }
+
+        $temp_path = $this->file_exchange->downloadFile($file_id, $filename);
+        try {
+            $this->telegram->sendDocument(
+                $chat_id,
+                $temp_path,
+                trim($event->text) !== '' ? $event->text : null,
+                null,
+                false,
+                $thread_id
+            );
+        } finally {
+            if (is_file($temp_path) && !unlink($temp_path)) {
+                throw new RuntimeException('Cannot remove temporary outbound document');
+            }
+        }
     }
 
     /**

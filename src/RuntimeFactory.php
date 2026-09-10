@@ -86,7 +86,11 @@ final class RuntimeFactory
                 $telegram,
                 new DbTenantMap(),
                 new DbStatusStateStore(),
-                new DbIgnoreStateStore()
+                new DbIgnoreStateStore(),
+                new FileExchangeApiClient(
+                    $config->file_exchange_base_url,
+                    $config->file_exchange_token
+                )
             ),
             new DbCursorStore()
         );

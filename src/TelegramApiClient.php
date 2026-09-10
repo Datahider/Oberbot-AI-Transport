@@ -121,8 +121,13 @@ final class TelegramApiClient implements TelegramClientInterface
             $payload['message_thread_id'] = $message_thread_id;
         }
 
+        $mime = mime_content_type($file_path);
+        if (!is_string($mime) || trim($mime) === '') {
+            throw new RuntimeException('Cannot determine Telegram document MIME type');
+        }
+
         return $this->multipartRequest('sendDocument', $payload, [
-            'document' => new \CURLFile($file_path, 'text/plain', basename($file_path)),
+            'document' => new \CURLFile($file_path, $mime, basename($file_path)),
         ]);
     }
 
