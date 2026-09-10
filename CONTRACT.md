@@ -254,6 +254,14 @@
 - `kind=heartbeat`:
   - не отправляет текст
   - вызывает только `sendChatAction(typing)`
+- `kind=document`:
+  - содержит ровно один attachment с непустыми `file_id` и `name`
+  - transport скачивает `GET {file_exchange.base_url}/{file_id}` с `Authorization: Bearer <file_exchange.token>` во временный файл
+  - transport передаёт временный файл в Telegram `sendDocument`
+  - `text` передаётся как caption без markdown/HTML parse mode; пустой `text` допустим
+  - forum topic передаётся в `message_thread_id`
+  - временный файл удаляется после успеха или ошибки
+  - невалидный attachment или ошибка скачивания явно завершают delivery ошибкой
 
 ## Telegram HTML Contract
 - Parse mode для `final`, `commentary`, `status` — `HTML`.
