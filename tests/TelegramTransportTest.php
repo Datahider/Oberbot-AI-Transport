@@ -541,6 +541,44 @@ function testUnknownOutboundKindIsSilentlyIgnored(): void
     assertSame([], $telegram->chat_actions, 'unknown kind chat actions');
 }
 
+function testDocumentOutboundDownloadsAndSendsTelegramDocument(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $exchange = new FakeFileExchangeClient();
+    $exchange->downloads['AbCd'] = 'document body';
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router,
+        $telegram,
+        new InMemoryTenantMap([]),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore(),
+        $exchange
+    );
+
+    $transport->deliverOutboundEvent(new OutboundEvent(
+        event_id: 44,
+        opaque: '-100123:77',
+        kind: 'document',
+        text: 'Report',
+        attachments: [[
+            'file_id' => 'AbCd',
+            'name' => 'report.pdf',
+            'mime' => 'application/pdf',
+            'size_bytes' => 13,
+        ]],
+        meta: []
+    ));
+
+    assertSame(['AbCd'], $exchange->download_calls, 'exchange download calls');
+    assertSame('document body', $telegram->sent_documents[0]['content'] ?? null, 'document content');
+    assertSame('Report', $telegram->sent_documents[0]['caption'] ?? null, 'document caption');
+    assertSame(null, $telegram->sent_documents[0]['parse_mode'] ?? null, 'document parse mode');
+    assertSame(77, $telegram->sent_documents[0]['message_thread_id'] ?? null, 'document thread');
+    assertSame(false, is_file((string) ($exchange->download_paths[0] ?? '')), 'temporary document removed');
+}
+
 function testVoiceQuoteCommandsSupportGroupInheritanceAndTopicOverride(): void
 {
     $telegram = new FakeTelegramClient();
@@ -1877,6 +1915,15 @@ final class FakeFileExchangeClient implements \CodexMultitenant\TransportTelegra
     /** @var list<array<string, mixed>> */
     public array $upload_results = [];
 
+    /** @var array<string, string> */
+    public array $downloads = [];
+
+    /** @var list<string> */
+    public array $download_calls = [];
+
+    /** @var list<string> */
+    public array $download_paths = [];
+
     public function uploadFile(string $file_path, string $filename, ?string $mime = null): array
     {
         $this->uploads[] = [
@@ -1890,6 +1937,20 @@ final class FakeFileExchangeClient implements \CodexMultitenant\TransportTelegra
         }
 
         return array_shift($this->upload_results);
+    }
+
+    public function downloadFile(string $file_id, string $filename): string
+    {
+        $this->download_calls[] = $file_id;
+        if (!array_key_exists($file_id, $this->downloads)) {
+            throw new RuntimeException('missing file exchange download');
+        }
+
+        $path = '/home/web/tmp/telegram-outbound-' . bin2hex(random_bytes(4)) . '-' . basename($filename);
+        file_put_contents($path, $this->downloads[$file_id]);
+        $this->download_paths[] = $path;
+
+        return $path;
     }
 }
 
@@ -1907,6 +1968,7 @@ testCommentarySendsTypingAfterMessage();
 testLongCommentaryFallsBackToDocumentWithCaption();
 testTranscriptSendsExpandableEscapedQuote();
 testUnknownOutboundKindIsSilentlyIgnored();
+testDocumentOutboundDownloadsAndSendsTelegramDocument();
 testVoiceQuoteCommandsSupportGroupInheritanceAndTopicOverride();
 testRendererRemovesUnsupportedTableTags();
 testRendererEscapesRawAngleBracketsBeforeMarkdownConversion();
