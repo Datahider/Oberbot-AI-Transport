@@ -512,7 +512,7 @@ function testWarningUsesWarningPrefixAndMarkdown(): void
         meta: []
     ));
 
-    assertSame('<pre>⚠️ Осталось 15%</pre>', $telegram->sent_messages[0]['text'] ?? null, 'warning text');
+    assertSame('⚠️ Осталось <code>15%</code>', $telegram->sent_messages[0]['text'] ?? null, 'warning text');
     assertSame('HTML', $telegram->sent_messages[0]['parse_mode'] ?? null, 'warning parse mode');
 }
 
@@ -563,7 +563,7 @@ function testSystemMessageHasGearPrefix(): void
         meta: []
     ));
 
-    assertSame('<pre>⚙️ Сессия abc</pre>', $telegram->sent_messages[0]['text'] ?? null, 'system text');
+    assertSame('⚙️ Сессия <code>abc</code>', $telegram->sent_messages[0]['text'] ?? null, 'system text');
 }
 
 function testTranscriptSendsExpandableEscapedQuote(): void
