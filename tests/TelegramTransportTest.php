@@ -772,6 +772,16 @@ function testIngressRunnerRegistersBotCommandsBeforePolling(): void
     }
 
     assertSame(TelegramBotCommandCatalog::all(), $telegram->bot_commands, 'registered bot commands');
+    $limits_commands = array_values(array_filter(
+        $telegram->bot_commands,
+        static fn (array $command): bool => ($command['command'] ?? null) === 'limits'
+    ));
+    assertSame([
+        [
+            'command' => 'limits',
+            'description' => 'Показать текущие лимиты Codex',
+        ],
+    ], $limits_commands, 'limits command registered');
     assertSame(1, $telegram->get_updates_calls, 'polling attempted after commands registration');
 }
 
