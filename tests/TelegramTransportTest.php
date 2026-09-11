@@ -542,7 +542,7 @@ function testLongWarningFallsBackToDocumentWithWarningCaption(): void
     assertSame(str_repeat('w', 5000), $telegram->sent_documents[0]['content'] ?? null, 'long warning document content');
 }
 
-function testSystemMessageHasNoPrefix(): void
+function testSystemMessageHasGearPrefix(): void
 {
     $telegram = new FakeTelegramClient();
     $transport = new TelegramTransport(
@@ -563,7 +563,7 @@ function testSystemMessageHasNoPrefix(): void
         meta: []
     ));
 
-    assertSame('Сессия <code>abc</code>', $telegram->sent_messages[0]['text'] ?? null, 'system text');
+    assertSame('⚙️ Сессия <code>abc</code>', $telegram->sent_messages[0]['text'] ?? null, 'system text');
 }
 
 function testTranscriptSendsExpandableEscapedQuote(): void
@@ -2216,7 +2216,7 @@ testCommentarySendsTypingAfterMessage();
 testLongCommentaryFallsBackToDocumentWithCaption();
 testWarningUsesWarningPrefixAndMarkdown();
 testLongWarningFallsBackToDocumentWithWarningCaption();
-testSystemMessageHasNoPrefix();
+testSystemMessageHasGearPrefix();
 testTranscriptSendsExpandableEscapedQuote();
 testUnknownOutboundKindIsSilentlyIgnored();
 testDocumentOutboundDownloadsAndSendsTelegramDocument();
