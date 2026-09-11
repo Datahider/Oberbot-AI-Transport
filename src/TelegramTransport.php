@@ -367,8 +367,8 @@ final class TelegramTransport
             return;
         }
 
-        $text = '✅ ' . ltrim($this->renderer->renderFinal($event->text));
-        if (trim($text) === '✅') {
+        $text = $this->renderer->renderFinal($event->text);
+        if ($text === '') {
             return;
         }
 
