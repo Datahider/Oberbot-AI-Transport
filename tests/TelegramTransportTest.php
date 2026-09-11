@@ -1484,7 +1484,7 @@ function testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery(): void
     }
 
     assertSame(51, $cursor_store->router_after_id, 'cursor after successful delivery');
-    assertSame('✅ done', $telegram->sent_messages[0]['text'] ?? null, 'delivered final text');
+    assertSame('done', $telegram->sent_messages[0]['text'] ?? null, 'delivered final text');
 }
 
 function testLongFinalFallsBackToDocumentWithCaption(): void
@@ -1593,7 +1593,7 @@ function testOutboundRunnerWaitsAndRetriesAfterTelegramRateLimit(): void
 
     assertSame([10000], $sleeps, 'rate limit sleep');
     assertSame(53, $cursor_store->router_after_id, 'cursor after retry success');
-    assertSame('✅ retry ok', $telegram->sent_messages[0]['text'] ?? null, 'delivered after retry');
+    assertSame('retry ok', $telegram->sent_messages[0]['text'] ?? null, 'delivered after retry');
     assertSame(2, $telegram->send_message_calls, 'retried same outbound delivery');
 }
 
@@ -1641,7 +1641,7 @@ function testOutboundRunnerWaitsAndRetriesAfterRouterUnavailable(): void
 
     assertSame([5000], $sleeps, 'router unavailable sleep');
     assertSame(54, $cursor_store->router_after_id, 'cursor after router retry success');
-    assertSame('✅ retry router', $telegram->sent_messages[0]['text'] ?? null, 'delivered after router retry');
+    assertSame('retry router', $telegram->sent_messages[0]['text'] ?? null, 'delivered after router retry');
 }
 
 function buildConfig(): TelegramTransportConfig
