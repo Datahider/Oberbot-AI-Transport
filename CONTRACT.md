@@ -214,7 +214,8 @@
   - `/stop` — `Прервать текущий ход агента`
   - `/reset` — `Сбросить codex session для текущего диалога`
   - `/session` — `Проверить или задать codex session для текущего диалога`
-- `/stop`, `/reset`, `/session` не являются transport-local command и публикуются только для bot menu.
+  - `/limits` — `Показать текущие лимиты Codex`
+- `/stop`, `/reset`, `/session`, `/limits` не являются transport-local command и публикуются только для bot menu.
 - Ошибка `setMyCommands` считается operational failure и должна прерывать запуск без fallback.
 
 ## Ignore State Contract
