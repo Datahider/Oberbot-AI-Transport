@@ -12,6 +12,7 @@ final class TelegramTransport
     private const TELEGRAM_TEXT_LIMIT = 4096;
     private const MAX_INBOUND_ATTACHMENT_SIZE_BYTES = 20 * 1024 * 1024;
     private const LONG_MESSAGE_CAPTION = 'Ответ получился слишком длинным, поэтому отправил его файлом.';
+    private const LONG_WARNING_CAPTION = 'Предупреждение получилось слишком длинным, поэтому отправил его файлом.';
     private const OVERSIZED_ATTACHMENT_TEXT = 'Файл больше 20 МБ. Отправьте файл меньше 20 МБ.';
     private const FILE_PROCESSING_TEXT = 'Обработка файла(ов)';
 
@@ -265,7 +266,7 @@ final class TelegramTransport
 
     public function deliverOutboundEvent(OutboundEvent $event): void
     {
-        if (!in_array($event->kind, ['final', 'commentary', 'transcript', 'status', 'heartbeat', 'document'], true)) {
+        if (!in_array($event->kind, ['final', 'commentary', 'warning', 'transcript', 'status', 'heartbeat', 'document'], true)) {
             return;
         }
 
@@ -328,6 +329,23 @@ final class TelegramTransport
                     'action' => 'typing',
                 ]);
             }
+            return;
+        }
+
+        if ($event->kind === 'warning') {
+            $text = '⚠️ ' . ltrim($this->renderer->renderFinal($event->text));
+            if (trim($text) === '⚠️') {
+                return;
+            }
+
+            $this->sendRenderedOutbound(
+                $chat_id,
+                $thread_id,
+                $text,
+                $event->text,
+                false,
+                self::LONG_WARNING_CAPTION
+            );
             return;
         }
 
@@ -693,7 +711,8 @@ final class TelegramTransport
         ?int $thread_id,
         string $rendered_text,
         string $document_text,
-        bool $disable_notification
+        bool $disable_notification,
+        string $long_message_caption = self::LONG_MESSAGE_CAPTION
     ): array {
         if (mb_strlen($rendered_text) <= self::TELEGRAM_TEXT_LIMIT) {
             return $this->telegram->sendMessage($chat_id, $rendered_text, null, 'HTML', $disable_notification, $thread_id);
@@ -705,7 +724,7 @@ final class TelegramTransport
             return $this->telegram->sendDocument(
                 $chat_id,
                 $file_path,
-                self::LONG_MESSAGE_CAPTION,
+                $long_message_caption,
                 null,
                 $disable_notification,
                 $thread_id

@@ -507,12 +507,12 @@ function testWarningUsesWarningPrefixAndMarkdown(): void
         event_id: 151,
         opaque: '100',
         kind: 'warning',
-        text: 'Осталось **15%**',
+        text: 'Осталось `15%`',
         attachments: [],
         meta: []
     ));
 
-    assertSame('⚠️ Осталось <b>15%</b>', $telegram->sent_messages[0]['text'] ?? null, 'warning text');
+    assertSame('⚠️ Осталось <code>15%</code>', $telegram->sent_messages[0]['text'] ?? null, 'warning text');
     assertSame('HTML', $telegram->sent_messages[0]['parse_mode'] ?? null, 'warning parse mode');
 }
 
