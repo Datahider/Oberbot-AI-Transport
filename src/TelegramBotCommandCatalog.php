@@ -56,6 +56,10 @@ final class TelegramBotCommandCatalog
                 'command' => 'session',
                 'description' => 'Проверить или задать codex session для текущего диалога',
             ],
+            [
+                'command' => 'limits',
+                'description' => 'Показать текущие лимиты Codex',
+            ],
         ];
     }
 }
