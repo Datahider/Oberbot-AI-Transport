@@ -18,17 +18,6 @@ final class TelegramTextRenderer
         return '<i>' . $this->markdownToTelegramHtml($markdown) . '</i>';
     }
 
-    public function renderMonospace(string $markdown, string $prefix): string
-    {
-        $html = $this->markdownToTelegramHtml($markdown);
-        if ($html === '') {
-            return '';
-        }
-
-        return '<pre>' . htmlspecialchars($prefix, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
-            . strip_tags($html) . '</pre>';
-    }
-
     public function renderTranscript(string $text): string
     {
         $text = trim($text);
