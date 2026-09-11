@@ -597,6 +597,7 @@ function testVoiceQuoteCommandsSupportGroupInheritanceAndTopicOverride(): void
         'message' => [
             'message_id' => 944,
             'text' => '/voicesilent',
+            'from' => ['id' => 7],
             'chat' => ['id' => -100123, 'type' => 'supergroup'],
         ],
     ]);
@@ -613,6 +614,7 @@ function testVoiceQuoteCommandsSupportGroupInheritanceAndTopicOverride(): void
             'message_id' => 947,
             'message_thread_id' => 77,
             'text' => '/voicequote',
+            'from' => ['id' => 7],
             'chat' => ['id' => -100123, 'type' => 'supergroup'],
         ],
     ]);
@@ -629,6 +631,7 @@ function testVoiceQuoteCommandsSupportGroupInheritanceAndTopicOverride(): void
             'message_id' => 949,
             'message_thread_id' => 77,
             'text' => '/voiceglobal',
+            'from' => ['id' => 7],
             'chat' => ['id' => -100123, 'type' => 'supergroup'],
         ],
     ]);
@@ -957,6 +960,7 @@ function testIgnoreCommandSuppressesForumThreadIngressOnly(): void
             'message_id' => 910,
             'message_thread_id' => 77,
             'text' => '/ignore',
+            'from' => ['id' => 7],
             'chat' => [
                 'id' => -100123,
                 'type' => 'supergroup',
@@ -974,6 +978,7 @@ function testIgnoreCommandSuppressesForumThreadIngressOnly(): void
             'message_id' => 911,
             'message_thread_id' => 77,
             'text' => 'hidden',
+            'from' => ['id' => 42],
             'chat' => [
                 'id' => -100123,
                 'type' => 'supergroup',
@@ -991,6 +996,7 @@ function testIgnoreCommandSuppressesForumThreadIngressOnly(): void
             'message_id' => 912,
             'message_thread_id' => 78,
             'text' => 'visible',
+            'from' => ['id' => 7],
             'chat' => [
                 'id' => -100123,
                 'type' => 'supergroup',
@@ -1001,6 +1007,163 @@ function testIgnoreCommandSuppressesForumThreadIngressOnly(): void
     assertSame(true, $other_thread['accepted'], 'other thread accepted');
     assertSame('visible', $router->ingress_payloads[0]['text'] ?? null, 'other thread forwarded');
     assertSame('-100123:78', $router->ingress_payloads[0]['opaque'] ?? null, 'other thread opaque');
+}
+
+function testActiveGroupScopeDeletesNonAdministratorMessage(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $telegram->chat_member_results['-100123:42'] = ['status' => 'member'];
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router,
+        $telegram,
+        new InMemoryTenantMap(['-100123' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+
+    $result = $transport->handleIncomingUpdate([
+        'update_id' => 101,
+        'message' => [
+            'message_id' => 2001,
+            'message_thread_id' => 77,
+            'text' => 'subscriber message',
+            'from' => ['id' => 42],
+            'chat' => ['id' => -100123, 'type' => 'supergroup'],
+        ],
+    ]);
+
+    assertSame(false, $result['accepted'], 'member message rejected');
+    assertSame([['chat_id' => '-100123', 'message_id' => 2001]], $telegram->deleted_messages, 'member message deleted');
+    assertSame([], $router->ingress_payloads, 'member message not forwarded');
+}
+
+function testActiveGroupScopeForwardsAdministratorMessage(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $telegram->chat_member_results['-100123:7'] = ['status' => 'administrator'];
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router,
+        $telegram,
+        new InMemoryTenantMap(['-100123' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+
+    $result = $transport->handleIncomingUpdate([
+        'update_id' => 102,
+        'message' => [
+            'message_id' => 2002,
+            'message_thread_id' => 77,
+            'text' => 'admin message',
+            'from' => ['id' => 7],
+            'chat' => ['id' => -100123, 'type' => 'supergroup'],
+        ],
+    ]);
+
+    assertSame(true, $result['accepted'], 'administrator message accepted');
+    assertSame([], $telegram->deleted_messages, 'administrator message retained');
+    assertSame('admin message', $router->ingress_payloads[0]['text'] ?? null, 'administrator message forwarded');
+}
+
+function testActiveGroupScopeForwardsAnonymousAdministratorMessage(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router,
+        $telegram,
+        new InMemoryTenantMap(['-100123' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+
+    $result = $transport->handleIncomingUpdate([
+        'update_id' => 103,
+        'message' => [
+            'message_id' => 2003,
+            'message_thread_id' => 77,
+            'text' => 'anonymous admin message',
+            'sender_chat' => ['id' => -100123],
+            'chat' => ['id' => -100123, 'type' => 'supergroup'],
+        ],
+    ]);
+
+    assertSame(true, $result['accepted'], 'anonymous administrator message accepted');
+    assertSame([], $telegram->deleted_messages, 'anonymous administrator message retained');
+    assertSame('anonymous admin message', $router->ingress_payloads[0]['text'] ?? null, 'anonymous administrator message forwarded');
+}
+
+function testIgnoredGroupScopeLeavesMemberMessagesAndCommandsUntouched(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $telegram->chat_member_results['-100123:42'] = ['status' => 'member'];
+    $ignore_store = new InMemoryIgnoreStateStore();
+    $ignore_store->setIgnored('-100123:77', true);
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router,
+        $telegram,
+        new InMemoryTenantMap(['-100123' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        $ignore_store
+    );
+
+    foreach (['discussion', '/done', '/unignore'] as $offset => $text) {
+        $result = $transport->handleIncomingUpdate([
+            'update_id' => 110 + $offset,
+            'message' => [
+                'message_id' => 2010 + $offset,
+                'message_thread_id' => 77,
+                'text' => $text,
+                'from' => ['id' => 42],
+                'chat' => ['id' => -100123, 'type' => 'supergroup'],
+            ],
+        ]);
+        assertSame(false, $result['accepted'], 'ignored member input untouched');
+    }
+
+    assertSame([], $telegram->deleted_messages, 'ignored member messages retained');
+    assertSame([], $telegram->closed_topics, 'ignored member command not handled');
+    assertSame(true, $ignore_store->isIgnored('-100123:77'), 'member cannot unignore scope');
+    assertSame([], $router->ingress_payloads, 'ignored member input not forwarded');
+}
+
+function testIgnoredGroupScopeAllowsAdministratorToUnignore(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $telegram->chat_member_results['-100123:7'] = ['status' => 'creator'];
+    $ignore_store = new InMemoryIgnoreStateStore();
+    $ignore_store->setIgnored('-100123:77', true);
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router,
+        $telegram,
+        new InMemoryTenantMap(['-100123' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        $ignore_store
+    );
+
+    $result = $transport->handleIncomingUpdate([
+        'update_id' => 120,
+        'message' => [
+            'message_id' => 2020,
+            'message_thread_id' => 77,
+            'text' => '/unignore',
+            'from' => ['id' => 7],
+            'chat' => ['id' => -100123, 'type' => 'supergroup'],
+        ],
+    ]);
+
+    assertSame(true, $result['accepted'], 'administrator unignore accepted');
+    assertSame(false, $ignore_store->isIgnored('-100123:77'), 'administrator unignored scope');
+    assertSame('Игнор: off', $result['messages'][0]['text'] ?? null, 'administrator receives confirmation');
 }
 
 function testUnignoreCommandRestoresChatIngress(): void
@@ -1154,6 +1317,7 @@ function testDoneCommandEditsIconAndClosesForumTopic(): void
             'message_id' => 919,
             'message_thread_id' => 77,
             'text' => '/done',
+            'from' => ['id' => 7],
             'chat' => [
                 'id' => -100123,
                 'type' => 'supergroup',
@@ -1196,6 +1360,7 @@ function testDoneCommandReportsTelegramPermissionFailureWithoutCrash(): void
             'message_id' => 920,
             'message_thread_id' => 77,
             'text' => '/done',
+            'from' => ['id' => 7],
             'chat' => [
                 'id' => -100123,
                 'type' => 'supergroup',
@@ -1523,6 +1688,9 @@ class FakeTelegramClient implements TelegramClientInterface
     /** @var list<array<string, mixed>> */
     public array $deleted_messages = [];
 
+    /** @var array<string, array<string, mixed>> */
+    public array $chat_member_results = [];
+
     /** @var list<array<string, mixed>> */
     public array $edited_topics = [];
 
@@ -1657,6 +1825,11 @@ class FakeTelegramClient implements TelegramClientInterface
             'chat_id' => $chat_id,
             'message_id' => $message_id,
         ];
+    }
+
+    public function getChatMember(int|string $chat_id, int $user_id): array
+    {
+        return $this->chat_member_results[(string) $chat_id . ':' . $user_id] ?? ['status' => 'administrator'];
     }
 
     public function editForumTopic(int|string $chat_id, int $message_thread_id, ?string $name = null, ?string $icon_custom_emoji_id = null): void
@@ -1979,6 +2152,11 @@ testIngressRunnerWaitsAndRetriesSameUpdateAfterRouterUnavailable();
 testIngressRunnerLogsAndSkipsUnexpectedUpdateError();
 testStatusEventCreatesInstructionAndStatusMessage();
 testIgnoreCommandSuppressesForumThreadIngressOnly();
+testActiveGroupScopeDeletesNonAdministratorMessage();
+testActiveGroupScopeForwardsAdministratorMessage();
+testActiveGroupScopeForwardsAnonymousAdministratorMessage();
+testIgnoredGroupScopeLeavesMemberMessagesAndCommandsUntouched();
+testIgnoredGroupScopeAllowsAdministratorToUnignore();
 testUnignoreCommandRestoresChatIngress();
 testNoteCommandStaysLocalAndSilent();
 testDoneCommandRejectsNonThreadChat();

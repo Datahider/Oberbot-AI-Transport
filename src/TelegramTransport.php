@@ -48,6 +48,51 @@ final class TelegramTransport
             ];
         }
 
+        if ($this->isGroupMessage($message)) {
+            $ignore_scope = $this->ingressScopeFor($message);
+            if ($this->ignore_store->isIgnored($ignore_scope)) {
+                if ($this->isUnignoreCommand($message->text) && $this->isGroupAdministrator($message)) {
+                    $this->ignore_store->setIgnored($ignore_scope, false);
+                    RuntimeLog::info('Disabled inbound ignore scope', [
+                        'chat_id' => $message->chat_id,
+                        'opaque' => $message->opaque,
+                        'scope' => $ignore_scope,
+                    ]);
+
+                    return [
+                        'accepted' => true,
+                        'messages' => [$this->sendTextReply($message, 'Игнор: off', null, true)],
+                    ];
+                }
+
+                RuntimeLog::info('Left ignored group message untouched', [
+                    'chat_id' => $message->chat_id,
+                    'opaque' => $message->opaque,
+                    'scope' => $ignore_scope,
+                ]);
+                return [
+                    'accepted' => false,
+                    'messages' => [],
+                ];
+            }
+
+            if (!$this->isGroupAdministrator($message)) {
+                if ($message->message_id === null || $message->message_id <= 0) {
+                    throw new RuntimeException('Telegram group message id is required for access filtering');
+                }
+                $this->telegram->deleteMessage($message->chat_id, $message->message_id);
+                RuntimeLog::info('Deleted non-administrator message from active group scope', [
+                    'chat_id' => $message->chat_id,
+                    'opaque' => $message->opaque,
+                    'message_id' => $message->message_id,
+                ]);
+                return [
+                    'accepted' => false,
+                    'messages' => [],
+                ];
+            }
+        }
+
         $status_command = $this->parseStatusCommand($message->text);
         if ($status_command !== null) {
             RuntimeLog::info('Handling local status command', [
@@ -298,6 +343,25 @@ final class TelegramTransport
             'thread_id' => $thread_id,
             'message_id' => $result['result']['message_id'] ?? $result['message_id'] ?? null,
         ]);
+    }
+
+    private function isGroupMessage(TelegramInboundMessage $message): bool
+    {
+        return in_array($message->chat_type, ['group', 'supergroup'], true);
+    }
+
+    private function isGroupAdministrator(TelegramInboundMessage $message): bool
+    {
+        if ($message->sender_chat_id === $message->chat_id) {
+            return true;
+        }
+        if ($message->sender_user_id === null) {
+            return false;
+        }
+
+        $member = $this->telegram->getChatMember($message->chat_id, $message->sender_user_id);
+
+        return in_array((string) ($member['status'] ?? ''), ['creator', 'administrator'], true);
     }
 
     private function deliverDocument(OutboundEvent $event, string $chat_id, ?int $thread_id): void

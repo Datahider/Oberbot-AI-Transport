@@ -216,6 +216,20 @@ final class TelegramApiClient implements TelegramClientInterface
         ]);
     }
 
+    public function getChatMember(int|string $chat_id, int $user_id): array
+    {
+        $response = $this->request('getChatMember', [
+            'chat_id' => $chat_id,
+            'user_id' => $user_id,
+        ]);
+        $member = $response['result'] ?? null;
+        if (!is_array($member)) {
+            throw new TelegramUnavailableException('Telegram API returned invalid getChatMember payload');
+        }
+
+        return $member;
+    }
+
     public function editForumTopic(
         int|string $chat_id,
         int $message_thread_id,

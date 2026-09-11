@@ -13,7 +13,10 @@ final class TelegramInboundMessage
     public function __construct(
         public readonly string $opaque,
         public readonly string $chat_id,
+        public readonly string $chat_type,
         public readonly ?int $thread_id,
+        public readonly ?int $sender_user_id,
+        public readonly ?string $sender_chat_id,
         public readonly string $text,
         public readonly ?int $message_id,
         public readonly array $attachments,

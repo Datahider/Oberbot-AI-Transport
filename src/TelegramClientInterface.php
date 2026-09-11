@@ -62,6 +62,11 @@ interface TelegramClientInterface
 
     public function deleteMessage(int|string $chat_id, int $message_id): void;
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function getChatMember(int|string $chat_id, int $user_id): array;
+
     public function editForumTopic(
         int|string $chat_id,
         int $message_thread_id,

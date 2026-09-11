@@ -99,6 +99,14 @@
 
 ### Ingress Rules
 - `tenant` определяется только по `chat_id` через локальную БД.
+- Для group/supergroup ingress-ignore scope также задаёт режим доступа:
+  - в ignored scope transport не удаляет сообщения участников и не передаёт их в `Router`;
+  - в ignored scope локально обрабатывается только `/unignore` от creator/administrator группы;
+  - в active scope сообщения creator/administrator обрабатываются штатно;
+  - в active scope сообщения остальных отправителей удаляются и не передаются в `Router`;
+  - сообщение, отправленное анонимным administrator от имени той же group/supergroup, считается administrator message;
+  - private chat этой фильтрации не подлежит.
+- Для удаления чужих сообщений bot должен быть administrator с правом `can_delete_messages`.
 - Если для `chat_id` нет tenant mapping, transport отвечает текстом из `transport.unknown_chat_text` и не вызывает `Router`.
 - `kind` на первом этапе всегда `message`.
 - `text` может быть пустым, если message содержит supported media без подписи.
@@ -175,6 +183,7 @@
 - После `/ignore` transport отвечает подтверждением в тот же chat/topic.
 - После успешного `/ignore` transport больше не пересылает в `Router` никакие последующие сообщения из этого scope.
 - `/unignore` выключает ingress-ignore для того же scope, который определился бы для `/ignore` в текущем сообщении.
+- В ignored group/supergroup scope `/unignore` принимается только от creator/administrator; та же команда от обычного участника остаётся в чате без каких-либо действий transport.
 - После `/unignore` transport отвечает подтверждением в тот же chat/topic.
 - `/voicequote` включает показ outbound `kind=transcript`: в общем чате — для всей группы, внутри forum topic — как локальное переопределение этого topic.
 - `/voicesilent` аналогично отключает показ транскрипции.

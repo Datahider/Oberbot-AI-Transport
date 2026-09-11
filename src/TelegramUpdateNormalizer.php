@@ -43,13 +43,21 @@ final class TelegramUpdateNormalizer
         }
 
         $chat_key = (string) $chat_id;
+        $chat_type = is_string($chat['type'] ?? null) ? trim((string) $chat['type']) : '';
         $thread_value = is_numeric($thread_id) ? (int) $thread_id : null;
         $message_value = is_numeric($message_id) ? (int) $message_id : null;
+        $sender_user_id = is_numeric($message['from']['id'] ?? null) ? (int) $message['from']['id'] : null;
+        $sender_chat_id = is_int($message['sender_chat']['id'] ?? null) || is_string($message['sender_chat']['id'] ?? null)
+            ? (string) $message['sender_chat']['id']
+            : null;
 
         return new TelegramInboundMessage(
             opaque: $this->opaqueFor($chat_key, $thread_value),
             chat_id: $chat_key,
+            chat_type: $chat_type,
             thread_id: $thread_value,
+            sender_user_id: $sender_user_id,
+            sender_chat_id: $sender_chat_id,
             text: $text,
             message_id: $message_value,
             attachments: $attachments,
@@ -58,7 +66,7 @@ final class TelegramUpdateNormalizer
                 'chat_id' => is_numeric($chat_key) ? (int) $chat_key : $chat_key,
                 'thread_id' => $thread_value,
                 'message_id' => $message_value,
-                'chat_type' => is_string($chat['type'] ?? null) ? trim((string) $chat['type']) : null,
+                'chat_type' => $chat_type,
             ], static fn (mixed $value): bool => $value !== null && $value !== '')
         );
     }
