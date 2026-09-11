@@ -13,6 +13,7 @@ final class TelegramTransport
     private const MAX_INBOUND_ATTACHMENT_SIZE_BYTES = 20 * 1024 * 1024;
     private const LONG_MESSAGE_CAPTION = 'Ответ получился слишком длинным, поэтому отправил его файлом.';
     private const LONG_WARNING_CAPTION = 'Предупреждение получилось слишком длинным, поэтому отправил его файлом.';
+    private const LONG_SYSTEM_CAPTION = 'Системное сообщение получилось слишком длинным, поэтому отправил его файлом.';
     private const OVERSIZED_ATTACHMENT_TEXT = 'Файл больше 20 МБ. Отправьте файл меньше 20 МБ.';
     private const FILE_PROCESSING_TEXT = 'Обработка файла(ов)';
 
@@ -266,7 +267,7 @@ final class TelegramTransport
 
     public function deliverOutboundEvent(OutboundEvent $event): void
     {
-        if (!in_array($event->kind, ['final', 'commentary', 'warning', 'transcript', 'status', 'heartbeat', 'document'], true)) {
+        if (!in_array($event->kind, ['final', 'commentary', 'warning', 'system', 'transcript', 'status', 'heartbeat', 'document'], true)) {
             return;
         }
 
@@ -345,6 +346,23 @@ final class TelegramTransport
                 $event->text,
                 false,
                 self::LONG_WARNING_CAPTION
+            );
+            return;
+        }
+
+        if ($event->kind === 'system') {
+            $text = $this->renderer->renderFinal($event->text);
+            if ($text === '') {
+                return;
+            }
+
+            $this->sendRenderedOutbound(
+                $chat_id,
+                $thread_id,
+                $text,
+                $event->text,
+                false,
+                self::LONG_SYSTEM_CAPTION
             );
             return;
         }
