@@ -491,6 +491,57 @@ function testLongCommentaryFallsBackToDocumentWithCaption(): void
     assertSame('typing', $telegram->chat_actions[0]['action'] ?? null, 'typing after long commentary document');
 }
 
+function testWarningUsesWarningPrefixAndMarkdown(): void
+{
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        new FakeRouterClient(),
+        $telegram,
+        new InMemoryTenantMap(['100' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+
+    $transport->deliverOutboundEvent(new OutboundEvent(
+        event_id: 151,
+        opaque: '100',
+        kind: 'warning',
+        text: 'Осталось **15%**',
+        attachments: [],
+        meta: []
+    ));
+
+    assertSame('⚠️ Осталось <b>15%</b>', $telegram->sent_messages[0]['text'] ?? null, 'warning text');
+    assertSame('HTML', $telegram->sent_messages[0]['parse_mode'] ?? null, 'warning parse mode');
+}
+
+function testLongWarningFallsBackToDocumentWithWarningCaption(): void
+{
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        new FakeRouterClient(),
+        $telegram,
+        new InMemoryTenantMap(['100' => 'user@server']),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+
+    $transport->deliverOutboundEvent(new OutboundEvent(
+        event_id: 152,
+        opaque: '100',
+        kind: 'warning',
+        text: str_repeat('w', 5000),
+        attachments: [],
+        meta: []
+    ));
+
+    assertSame([], $telegram->sent_messages, 'long warning not sent as plain message');
+    assertSame('Предупреждение получилось слишком длинным, поэтому отправил его файлом.', $telegram->sent_documents[0]['caption'] ?? null, 'long warning caption');
+    assertSame(str_repeat('w', 5000), $telegram->sent_documents[0]['content'] ?? null, 'long warning document content');
+}
+
 function testTranscriptSendsExpandableEscapedQuote(): void
 {
     $telegram = new FakeTelegramClient();
@@ -2139,6 +2190,8 @@ testStatusCommandDefaultsToEnabled();
 testUnknownChatReplySkipsRouterIngress();
 testCommentarySendsTypingAfterMessage();
 testLongCommentaryFallsBackToDocumentWithCaption();
+testWarningUsesWarningPrefixAndMarkdown();
+testLongWarningFallsBackToDocumentWithWarningCaption();
 testTranscriptSendsExpandableEscapedQuote();
 testUnknownOutboundKindIsSilentlyIgnored();
 testDocumentOutboundDownloadsAndSendsTelegramDocument();
