@@ -351,8 +351,8 @@ final class TelegramTransport
         }
 
         if ($event->kind === 'system') {
-            $text = $this->renderer->renderFinal($event->text);
-            if ($text === '') {
+            $text = '⚙️ ' . ltrim($this->renderer->renderFinal($event->text));
+            if (trim($text) === '⚙️') {
                 return;
             }
 
