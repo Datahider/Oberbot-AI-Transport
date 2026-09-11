@@ -334,8 +334,8 @@ final class TelegramTransport
         }
 
         if ($event->kind === 'warning') {
-            $text = '⚠️ ' . ltrim($this->renderer->renderFinal($event->text));
-            if (trim($text) === '⚠️') {
+            $text = $this->renderer->renderMonospace($event->text, '⚠️ ');
+            if ($text === '') {
                 return;
             }
 
@@ -351,8 +351,8 @@ final class TelegramTransport
         }
 
         if ($event->kind === 'system') {
-            $text = '⚙️ ' . ltrim($this->renderer->renderFinal($event->text));
-            if (trim($text) === '⚙️') {
+            $text = $this->renderer->renderMonospace($event->text, '⚙️ ');
+            if ($text === '') {
                 return;
             }
 
