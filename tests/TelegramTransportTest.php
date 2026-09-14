@@ -654,6 +654,43 @@ function testDocumentOutboundDownloadsAndSendsTelegramDocument(): void
     assertSame(false, is_file((string) ($exchange->download_paths[0] ?? '')), 'temporary document removed');
 }
 
+function testImageOutboundDownloadsAndSendsTelegramPhoto(): void
+{
+    $telegram = new FakeTelegramClient();
+    $exchange = new FakeFileExchangeClient();
+    $exchange->downloads['Img1'] = 'image body';
+    $transport = new TelegramTransport(
+        buildConfig(),
+        new FakeRouterClient(),
+        $telegram,
+        new InMemoryTenantMap([]),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore(),
+        $exchange
+    );
+
+    $transport->deliverOutboundEvent(new OutboundEvent(
+        event_id: 45,
+        opaque: '-100123:78',
+        kind: 'image',
+        text: 'Pixel',
+        attachments: [[
+            'file_id' => 'Img1',
+            'name' => 'pixel.png',
+            'mime' => 'image/png',
+            'size_bytes' => 10,
+        ]],
+        meta: []
+    ));
+
+    assertSame(['Img1'], $exchange->download_calls, 'image exchange download calls');
+    assertSame('image body', $telegram->sent_photos[0]['content'] ?? null, 'photo content');
+    assertSame('Pixel', $telegram->sent_photos[0]['caption'] ?? null, 'photo caption');
+    assertSame(null, $telegram->sent_photos[0]['parse_mode'] ?? null, 'photo parse mode');
+    assertSame(78, $telegram->sent_photos[0]['message_thread_id'] ?? null, 'photo thread');
+    assertSame(false, is_file((string) ($exchange->download_paths[0] ?? '')), 'temporary image removed');
+}
+
 function testVoiceQuoteCommandsSupportGroupInheritanceAndTopicOverride(): void
 {
     $telegram = new FakeTelegramClient();
@@ -1762,6 +1799,9 @@ class FakeTelegramClient implements TelegramClientInterface
     public array $sent_documents = [];
 
     /** @var list<array<string, mixed>> */
+    public array $sent_photos = [];
+
+    /** @var list<array<string, mixed>> */
     public array $edited_messages = [];
 
     /** @var list<array<string, mixed>> */
@@ -1852,6 +1892,27 @@ class FakeTelegramClient implements TelegramClientInterface
                 'message_id' => $message_id,
             ],
         ];
+    }
+
+    public function sendPhoto(
+        int|string $chat_id,
+        string $file_path,
+        ?string $caption = null,
+        ?string $parse_mode = null,
+        bool $disable_notification = false,
+        ?int $message_thread_id = null
+    ): array {
+        $this->sent_photos[] = [
+            'chat_id' => $chat_id,
+            'file_path' => $file_path,
+            'content' => is_file($file_path) ? (string) file_get_contents($file_path) : null,
+            'caption' => $caption,
+            'parse_mode' => $parse_mode,
+            'disable_notification' => $disable_notification,
+            'message_thread_id' => $message_thread_id,
+        ];
+
+        return ['ok' => true, 'result' => ['message_id' => 2500]];
     }
 
     public function editMessageText(int|string $chat_id, int $message_id, string $text, ?string $parse_mode = null, ?int $message_thread_id = null): void
@@ -2230,6 +2291,7 @@ testSystemMessageHasGearPrefix();
 testTranscriptSendsExpandableEscapedQuote();
 testUnknownOutboundKindIsSilentlyIgnored();
 testDocumentOutboundDownloadsAndSendsTelegramDocument();
+testImageOutboundDownloadsAndSendsTelegramPhoto();
 testVoiceQuoteCommandsSupportGroupInheritanceAndTopicOverride();
 testRendererRemovesUnsupportedTableTags();
 testRendererEscapesRawAngleBracketsBeforeMarkdownConversion();
