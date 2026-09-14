@@ -131,6 +131,41 @@ final class TelegramApiClient implements TelegramClientInterface
         ]);
     }
 
+    public function sendPhoto(
+        int|string $chat_id,
+        string $file_path,
+        ?string $caption = null,
+        ?string $parse_mode = null,
+        bool $disable_notification = false,
+        ?int $message_thread_id = null
+    ): array {
+        $file_path = trim($file_path);
+        if ($file_path === '' || !is_file($file_path)) {
+            throw new RuntimeException('Telegram outbound photo file is missing');
+        }
+
+        $mime = mime_content_type($file_path);
+        if (!is_string($mime) || !in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+            throw new RuntimeException('Telegram outbound photo must be JPEG, PNG or WEBP');
+        }
+
+        $payload = [
+            'chat_id' => $chat_id,
+            'caption' => $caption !== null ? trim($caption) : null,
+            'disable_notification' => $disable_notification,
+        ];
+        if ($parse_mode !== null && trim($parse_mode) !== '') {
+            $payload['parse_mode'] = trim($parse_mode);
+        }
+        if ($message_thread_id !== null && $message_thread_id > 0) {
+            $payload['message_thread_id'] = $message_thread_id;
+        }
+
+        return $this->multipartRequest('sendPhoto', $payload, [
+            'photo' => new \CURLFile($file_path, $mime, basename($file_path)),
+        ]);
+    }
+
     public function editMessageText(
         int|string $chat_id,
         int $message_id,

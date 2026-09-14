@@ -267,7 +267,7 @@ final class TelegramTransport
 
     public function deliverOutboundEvent(OutboundEvent $event): void
     {
-        if (!in_array($event->kind, ['final', 'commentary', 'warning', 'system', 'transcript', 'status', 'heartbeat', 'document'], true)) {
+        if (!in_array($event->kind, ['final', 'commentary', 'warning', 'system', 'transcript', 'status', 'heartbeat', 'document', 'image'], true)) {
             return;
         }
 
@@ -298,6 +298,11 @@ final class TelegramTransport
 
         if ($event->kind === 'document') {
             $this->deliverDocument($event, $chat_id, $thread_id);
+            return;
+        }
+
+        if ($event->kind === 'image') {
+            $this->deliverImage($event, $chat_id, $thread_id);
             return;
         }
 
@@ -429,6 +434,40 @@ final class TelegramTransport
         } finally {
             if (is_file($temp_path) && !unlink($temp_path)) {
                 throw new RuntimeException('Cannot remove temporary outbound document');
+            }
+        }
+    }
+
+    private function deliverImage(OutboundEvent $event, string $chat_id, ?int $thread_id): void
+    {
+        if ($this->file_exchange === null) {
+            throw new RuntimeException('File exchange client is required for image delivery');
+        }
+        if (count($event->attachments) !== 1 || !is_array($event->attachments[0])) {
+            throw new RuntimeException('Image outbound requires exactly one attachment');
+        }
+
+        $attachment = $event->attachments[0];
+        $file_id = trim((string) ($attachment['file_id'] ?? ''));
+        $filename = trim((string) ($attachment['name'] ?? ''));
+        $mime = trim((string) ($attachment['mime'] ?? ''));
+        if ($file_id === '' || $filename === '' || !in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+            throw new RuntimeException('Image attachment requires valid file_id, name and mime');
+        }
+
+        $temp_path = $this->file_exchange->downloadFile($file_id, $filename);
+        try {
+            $this->telegram->sendPhoto(
+                $chat_id,
+                $temp_path,
+                trim($event->text) !== '' ? $event->text : null,
+                null,
+                false,
+                $thread_id
+            );
+        } finally {
+            if (is_file($temp_path) && !unlink($temp_path)) {
+                throw new RuntimeException('Cannot remove temporary outbound image');
             }
         }
     }
