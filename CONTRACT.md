@@ -280,6 +280,15 @@
   - forum topic передаётся в `message_thread_id`
   - временный файл удаляется после успеха или ошибки
   - невалидный attachment или ошибка скачивания явно завершают delivery ошибкой
+- `kind=image`:
+  - содержит ровно один attachment с непустыми `file_id`, `name` и `mime`
+  - `mime` должен быть равен `image/jpeg`, `image/png` или `image/webp`
+  - transport скачивает attachment так же, как для `kind=document`
+  - transport передаёт временный файл в Telegram `sendPhoto`
+  - `text` передаётся как caption без parse mode; пустой `text` допустим
+  - forum topic передаётся в `message_thread_id`
+  - временный файл удаляется после успеха или ошибки
+  - невалидный attachment или ошибка доставки явно завершают delivery ошибкой
 
 ## Telegram HTML Contract
 - Parse mode для `final`, `commentary`, `status` — `HTML`.
