@@ -386,6 +386,19 @@ final class TelegramTransport
         ]);
     }
 
+    public function reportOutboundDeliveryFailure(OutboundEvent $event, \Throwable $error): void
+    {
+        [$chat_id, $thread_id] = $this->resolveOpaque($event->opaque);
+        $text = sprintf(
+            'Не удалось доставить событие #%d (%s): %s',
+            $event->event_id,
+            $event->kind,
+            $error->getMessage()
+        );
+
+        $this->telegram->sendMessage($chat_id, $text, null, null, false, $thread_id);
+    }
+
     private function isGroupMessage(TelegramInboundMessage $message): bool
     {
         return in_array($message->chat_type, ['group', 'supergroup'], true);

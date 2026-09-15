@@ -85,7 +85,18 @@ final class OutboundRunner
                             'opaque' => $event->opaque,
                             'error' => $e->getMessage(),
                         ]);
-                        throw $e;
+                        try {
+                            $this->transport->reportOutboundDeliveryFailure($event, $e);
+                        } catch (\Throwable $diagnostic_error) {
+                            RuntimeLog::error('Outbound delivery failure diagnostic failed', [
+                                'event_id' => $event->event_id,
+                                'kind' => $event->kind,
+                                'opaque' => $event->opaque,
+                                'error' => $diagnostic_error->getMessage(),
+                                'exception_class' => $diagnostic_error::class,
+                            ]);
+                        }
+                        break;
                     }
                 }
 

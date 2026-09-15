@@ -239,6 +239,12 @@
 - Transport читает outbound только через `GET /api/v1/transport/outbound`.
 - Cursor `after_id` хранится persistently в БД транспорта.
 - Для каждого outbound event transport дополнительно фильтрует по точному `opaque`.
+- Если доставка поддержанного outbound event завершилась невременной ошибкой, transport:
+  - не завершает outbound worker;
+  - отправляет в тот же Telegram chat/topic диагностическое текстовое сообщение с `event_id`, `kind` и текстом ошибки;
+  - после попытки отправить диагностику считает исходное событие обработанным и сохраняет его `event_id` как cursor, чтобы ошибочное событие не блокировало очередь;
+  - если диагностическое сообщение также не удалось отправить, пишет эту ошибку в runtime log, сохраняет cursor и продолжает обработку следующих событий.
+- Временные ошибки `TelegramRateLimitException`, `TelegramUnavailableException` и `RouterUnavailableException` сохраняют retry-поведение и не продвигают cursor до успешной доставки.
 
 ### Outbound Rendering
 - Transport обрабатывает только явно перечисленные ниже `kind`.

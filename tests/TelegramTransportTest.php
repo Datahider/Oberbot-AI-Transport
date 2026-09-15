@@ -1560,7 +1560,57 @@ function testLongFinalFallsBackToDocumentWithCaption(): void
     assertSame(str_repeat('b', 5000), $telegram->sent_documents[0]['content'] ?? null, 'long final document content');
 }
 
-function testOutboundRunnerKeepsCursorWhenDeliveryFails(): void
+function testOutboundRunnerReportsPermanentDeliveryFailureAndAdvancesCursor(): void
+{
+    $telegram = new PhotoRejectingTelegramClient();
+    $exchange = new FakeFileExchangeClient();
+    $exchange->downloads['Img1'] = 'invalid image body';
+    $transport = new TelegramTransport(
+        buildConfig(),
+        new FakeRouterClient(),
+        $telegram,
+        new InMemoryTenantMap([]),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore(),
+        $exchange
+    );
+    $cursor_store = new InMemoryCursorStore();
+    $router = new SequencedOutboundRouterClient([
+        [[
+            'event_id' => 52,
+            'opaque' => '-100123:77',
+            'kind' => 'image',
+            'text' => 'broken image',
+            'attachments' => [[
+                'file_id' => 'Img1',
+                'name' => 'broken.png',
+                'mime' => 'image/png',
+                'size_bytes' => 18,
+            ]],
+            'meta' => [],
+        ]],
+    ]);
+
+    $runner = new OutboundRunner($router, $transport, $cursor_store);
+
+    try {
+        $runner->run();
+        fail('Expected runner to stop after fake router exhaustion');
+    } catch (RuntimeException $e) {
+        assertSame('stop polling', $e->getMessage(), 'runner stop marker');
+    }
+
+    assertSame(52, $cursor_store->router_after_id, 'cursor after permanent delivery failure');
+    assertSame('-100123', $telegram->sent_messages[0]['chat_id'] ?? null, 'diagnostic chat');
+    assertSame(77, $telegram->sent_messages[0]['message_thread_id'] ?? null, 'diagnostic topic');
+    assertSame(
+        "Не удалось доставить событие #52 (image): Telegram API request failed: Bad Request: PHOTO_INVALID_DIMENSIONS",
+        $telegram->sent_messages[0]['text'] ?? null,
+        'delivery failure diagnostic'
+    );
+}
+
+function testOutboundRunnerAdvancesCursorWhenFailureDiagnosticAlsoFails(): void
 {
     $status_store = new InMemoryStatusStateStore();
     $status_store->save(new StatusState('100', true, null, null));
@@ -1575,7 +1625,7 @@ function testOutboundRunnerKeepsCursorWhenDeliveryFails(): void
     $cursor_store = new InMemoryCursorStore();
     $router = new SequencedOutboundRouterClient([
         [[
-            'event_id' => 52,
+            'event_id' => 55,
             'opaque' => '100',
             'kind' => 'final',
             'text' => 'broken',
@@ -1588,12 +1638,12 @@ function testOutboundRunnerKeepsCursorWhenDeliveryFails(): void
 
     try {
         $runner->run();
-        fail('Expected delivery failure to bubble');
+        fail('Expected runner to stop after fake router exhaustion');
     } catch (RuntimeException $e) {
-        assertSame('delivery failed', $e->getMessage(), 'delivery failure marker');
+        assertSame('stop polling', $e->getMessage(), 'runner stop marker');
     }
 
-    assertSame(0, $cursor_store->router_after_id, 'cursor after failed delivery');
+    assertSame(55, $cursor_store->router_after_id, 'cursor after failed diagnostic');
 }
 
 function testOutboundRunnerWaitsAndRetriesAfterTelegramRateLimit(): void
@@ -2169,6 +2219,20 @@ final class ThrowingTelegramClient extends FakeTelegramClient
     }
 }
 
+final class PhotoRejectingTelegramClient extends FakeTelegramClient
+{
+    public function sendPhoto(
+        int|string $chat_id,
+        string $file_path,
+        ?string $caption = null,
+        ?string $parse_mode = null,
+        bool $disable_notification = false,
+        ?int $message_thread_id = null
+    ): array {
+        throw new RuntimeException('Telegram API request failed: Bad Request: PHOTO_INVALID_DIMENSIONS');
+    }
+}
+
 final class RetryingIngressRouterClient implements RouterClientInterface
 {
     /** @var list<array<string, mixed>> */
@@ -2314,7 +2378,8 @@ testDoneCommandEditsIconAndClosesForumTopic();
 testDoneCommandReportsTelegramPermissionFailureWithoutCrash();
 testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery();
 testLongFinalFallsBackToDocumentWithCaption();
-testOutboundRunnerKeepsCursorWhenDeliveryFails();
+testOutboundRunnerReportsPermanentDeliveryFailureAndAdvancesCursor();
+testOutboundRunnerAdvancesCursorWhenFailureDiagnosticAlsoFails();
 testOutboundRunnerWaitsAndRetriesAfterTelegramRateLimit();
 testOutboundRunnerWaitsAndRetriesAfterRouterUnavailable();
 
