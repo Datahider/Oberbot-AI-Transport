@@ -303,9 +303,9 @@
 - `kind=voice`:
   - содержит ровно один attachment с непустыми `file_id`, `name` и `mime`
   - `mime` должен быть равен `audio/ogg`
-  - `text` может быть пустым или содержать plain-text caption
+  - `text` может быть пустым или содержать HTML caption
   - transport скачивает attachment так же, как для `kind=document`
-  - transport передаёт временный файл и `text` как caption без parse mode в Telegram `sendVoice`
+  - transport передаёт временный файл и `text` как caption с parse mode `HTML` в Telegram `sendVoice`
   - forum topic передаётся в `message_thread_id`
   - временный файл удаляется после успеха или ошибки
   - невалидный attachment или ошибка доставки явно завершают delivery ошибкой
