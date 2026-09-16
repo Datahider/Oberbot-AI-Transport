@@ -287,7 +287,7 @@
   - содержит ровно один attachment с непустыми `file_id` и `name`
   - transport скачивает `GET {file_exchange.base_url}/{file_id}` с `Authorization: Bearer <file_exchange.token>` во временный файл
   - transport передаёт временный файл в Telegram `sendDocument`
-  - `text` передаётся как caption без markdown/HTML parse mode; пустой `text` допустим
+  - непустой `text` рендерится через `TelegramTextRenderer::renderFinal()` и передаётся как caption с parse mode `HTML`; пустой `text` допустим
   - forum topic передаётся в `message_thread_id`
   - временный файл удаляется после успеха или ошибки
   - невалидный attachment или ошибка скачивания явно завершают delivery ошибкой
@@ -296,16 +296,16 @@
   - `mime` должен быть равен `image/jpeg`, `image/png` или `image/webp`
   - transport скачивает attachment так же, как для `kind=document`
   - transport передаёт временный файл в Telegram `sendPhoto`
-  - `text` передаётся как caption без parse mode; пустой `text` допустим
+  - непустой `text` рендерится через `TelegramTextRenderer::renderFinal()` и передаётся как caption с parse mode `HTML`; пустой `text` допустим
   - forum topic передаётся в `message_thread_id`
   - временный файл удаляется после успеха или ошибки
   - невалидный attachment или ошибка доставки явно завершают delivery ошибкой
 - `kind=voice`:
   - содержит ровно один attachment с непустыми `file_id`, `name` и `mime`
   - `mime` должен быть равен `audio/ogg`
-  - `text` может быть пустым или содержать HTML caption
+  - `text` может быть пустым или содержать Markdown caption
   - transport скачивает attachment так же, как для `kind=document`
-  - transport передаёт временный файл и `text` как caption с parse mode `HTML` в Telegram `sendVoice`
+  - непустой `text` рендерится через `TelegramTextRenderer::renderFinal()` и передаётся как caption с parse mode `HTML` в Telegram `sendVoice`
   - forum topic передаётся в `message_thread_id`
   - временный файл удаляется после успеха или ошибки
   - невалидный attachment или ошибка доставки явно завершают delivery ошибкой
