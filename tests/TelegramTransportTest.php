@@ -710,7 +710,7 @@ function testVoiceOutboundDownloadsAndSendsTelegramVoice(): void
         event_id: 46,
         opaque: '-100123:79',
         kind: 'voice',
-        text: '',
+        text: '/voice cedar',
         attachments: [[
             'file_id' => 'Voice1',
             'name' => 'response.ogg',
@@ -722,6 +722,8 @@ function testVoiceOutboundDownloadsAndSendsTelegramVoice(): void
 
     assertSame(['Voice1'], $exchange->download_calls, 'voice exchange download calls');
     assertSame('ogg voice body', $telegram->sent_voices[0]['content'] ?? null, 'voice content');
+    assertSame('/voice cedar', $telegram->sent_voices[0]['caption'] ?? null, 'voice caption');
+    assertSame(null, $telegram->sent_voices[0]['parse_mode'] ?? null, 'voice caption parse mode');
     assertSame(79, $telegram->sent_voices[0]['message_thread_id'] ?? null, 'voice thread');
     assertSame(false, is_file((string) ($exchange->download_paths[0] ?? '')), 'temporary voice removed');
 }
@@ -2014,12 +2016,16 @@ class FakeTelegramClient implements TelegramClientInterface
     public function sendVoice(
         int|string $chat_id,
         string $file_path,
+        ?string $caption = null,
+        ?string $parse_mode = null,
         ?int $message_thread_id = null
     ): array {
         $this->sent_voices[] = [
             'chat_id' => $chat_id,
             'file_path' => $file_path,
             'content' => is_file($file_path) ? (string) file_get_contents($file_path) : null,
+            'caption' => $caption,
+            'parse_mode' => $parse_mode,
             'message_thread_id' => $message_thread_id,
         ];
 
