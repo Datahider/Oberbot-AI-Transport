@@ -37,6 +37,14 @@ final class TelegramBotCommandCatalog
                 'description' => 'Наследовать настройку группы',
             ],
             [
+                'command' => 'voices',
+                'description' => 'Показать доступные голоса',
+            ],
+            [
+                'command' => 'voice',
+                'description' => 'Показать или выбрать голос',
+            ],
+            [
                 'command' => 'note',
                 'description' => 'Сохранить заметку без отправки дальше',
             ],

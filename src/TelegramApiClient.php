@@ -166,6 +166,26 @@ final class TelegramApiClient implements TelegramClientInterface
         ]);
     }
 
+    public function sendVoice(
+        int|string $chat_id,
+        string $file_path,
+        ?int $message_thread_id = null
+    ): array {
+        $file_path = trim($file_path);
+        if ($file_path === '' || !is_file($file_path)) {
+            throw new RuntimeException('Telegram outbound voice file is missing');
+        }
+
+        $payload = ['chat_id' => $chat_id];
+        if ($message_thread_id !== null && $message_thread_id > 0) {
+            $payload['message_thread_id'] = $message_thread_id;
+        }
+
+        return $this->multipartRequest('sendVoice', $payload, [
+            'voice' => new \CURLFile($file_path, 'audio/ogg', basename($file_path)),
+        ]);
+    }
+
     public function editMessageText(
         int|string $chat_id,
         int $message_id,

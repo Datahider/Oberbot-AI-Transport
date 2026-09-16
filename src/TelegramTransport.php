@@ -267,7 +267,7 @@ final class TelegramTransport
 
     public function deliverOutboundEvent(OutboundEvent $event): void
     {
-        if (!in_array($event->kind, ['final', 'commentary', 'warning', 'system', 'transcript', 'status', 'heartbeat', 'document', 'image'], true)) {
+        if (!in_array($event->kind, ['final', 'commentary', 'warning', 'system', 'transcript', 'status', 'heartbeat', 'document', 'image', 'voice'], true)) {
             return;
         }
 
@@ -303,6 +303,11 @@ final class TelegramTransport
 
         if ($event->kind === 'image') {
             $this->deliverImage($event, $chat_id, $thread_id);
+            return;
+        }
+
+        if ($event->kind === 'voice') {
+            $this->deliverVoice($event, $chat_id, $thread_id);
             return;
         }
 
@@ -481,6 +486,33 @@ final class TelegramTransport
         } finally {
             if (is_file($temp_path) && !unlink($temp_path)) {
                 throw new RuntimeException('Cannot remove temporary outbound image');
+            }
+        }
+    }
+
+    private function deliverVoice(OutboundEvent $event, string $chat_id, ?int $thread_id): void
+    {
+        if ($this->file_exchange === null) {
+            throw new RuntimeException('File exchange client is required for voice delivery');
+        }
+        if ($event->text !== '' || count($event->attachments) !== 1 || !is_array($event->attachments[0])) {
+            throw new RuntimeException('Voice outbound requires empty text and exactly one attachment');
+        }
+
+        $attachment = $event->attachments[0];
+        $file_id = trim((string) ($attachment['file_id'] ?? ''));
+        $filename = trim((string) ($attachment['name'] ?? ''));
+        $mime = trim((string) ($attachment['mime'] ?? ''));
+        if ($file_id === '' || $filename === '' || $mime !== 'audio/ogg') {
+            throw new RuntimeException('Voice attachment requires valid file_id, name and audio/ogg mime');
+        }
+
+        $temp_path = $this->file_exchange->downloadFile($file_id, $filename);
+        try {
+            $this->telegram->sendVoice($chat_id, $temp_path, $thread_id);
+        } finally {
+            if (is_file($temp_path) && !unlink($temp_path)) {
+                throw new RuntimeException('Cannot remove temporary outbound voice');
             }
         }
     }

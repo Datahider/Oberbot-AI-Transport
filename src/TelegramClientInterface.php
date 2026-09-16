@@ -45,6 +45,13 @@ interface TelegramClientInterface
         ?int $message_thread_id = null
     ): array;
 
+    /** @return array<string, mixed> */
+    public function sendVoice(
+        int|string $chat_id,
+        string $file_path,
+        ?int $message_thread_id = null
+    ): array;
+
     public function editMessageText(
         int|string $chat_id,
         int $message_id,
