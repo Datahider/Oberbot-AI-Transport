@@ -441,11 +441,12 @@ final class TelegramTransport
 
         $temp_path = $this->file_exchange->downloadFile($file_id, $filename);
         try {
+            $caption = $this->renderer->renderFinal($event->text);
             $this->telegram->sendDocument(
                 $chat_id,
                 $temp_path,
-                trim($event->text) !== '' ? $event->text : null,
-                null,
+                $caption !== '' ? $caption : null,
+                $caption !== '' ? 'HTML' : null,
                 false,
                 $thread_id
             );
@@ -475,11 +476,12 @@ final class TelegramTransport
 
         $temp_path = $this->file_exchange->downloadFile($file_id, $filename);
         try {
+            $caption = $this->renderer->renderFinal($event->text);
             $this->telegram->sendPhoto(
                 $chat_id,
                 $temp_path,
-                trim($event->text) !== '' ? $event->text : null,
-                null,
+                $caption !== '' ? $caption : null,
+                $caption !== '' ? 'HTML' : null,
                 false,
                 $thread_id
             );
@@ -509,11 +511,12 @@ final class TelegramTransport
 
         $temp_path = $this->file_exchange->downloadFile($file_id, $filename);
         try {
+            $caption = $this->renderer->renderFinal($event->text);
             $this->telegram->sendVoice(
                 $chat_id,
                 $temp_path,
-                $event->text !== '' ? $event->text : null,
-                $event->text !== '' ? 'HTML' : null,
+                $caption !== '' ? $caption : null,
+                $caption !== '' ? 'HTML' : null,
                 $thread_id
             );
         } finally {
