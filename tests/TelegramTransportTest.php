@@ -854,6 +854,14 @@ function testIngressRunnerRegistersBotCommandsBeforePolling(): void
             'description' => 'Показать текущие лимиты Codex',
         ],
     ], $limits_commands, 'limits command registered');
+    $voice_commands = array_values(array_filter(
+        $telegram->bot_commands,
+        static fn (array $command): bool => in_array(($command['command'] ?? null), ['voices', 'voice'], true)
+    ));
+    assertSame([
+        ['command' => 'voices', 'description' => 'Показать доступные голоса'],
+        ['command' => 'voice', 'description' => 'Показать или выбрать голос'],
+    ], $voice_commands, 'voice commands registered');
     assertSame(1, $telegram->get_updates_calls, 'polling attempted after commands registration');
 }
 
