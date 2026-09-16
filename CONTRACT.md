@@ -295,6 +295,15 @@
   - forum topic передаётся в `message_thread_id`
   - временный файл удаляется после успеха или ошибки
   - невалидный attachment или ошибка доставки явно завершают delivery ошибкой
+- `kind=voice`:
+  - содержит ровно один attachment с непустыми `file_id`, `name` и `mime`
+  - `mime` должен быть равен `audio/ogg`
+  - `text` должен быть пустой строкой
+  - transport скачивает attachment так же, как для `kind=document`
+  - transport передаёт временный файл в Telegram `sendVoice`
+  - forum topic передаётся в `message_thread_id`
+  - временный файл удаляется после успеха или ошибки
+  - невалидный attachment или ошибка доставки явно завершают delivery ошибкой
 
 ## Telegram HTML Contract
 - Parse mode для `final`, `commentary`, `status` — `HTML`.

@@ -691,6 +691,41 @@ function testImageOutboundDownloadsAndSendsTelegramPhoto(): void
     assertSame(false, is_file((string) ($exchange->download_paths[0] ?? '')), 'temporary image removed');
 }
 
+function testVoiceOutboundDownloadsAndSendsTelegramVoice(): void
+{
+    $telegram = new FakeTelegramClient();
+    $exchange = new FakeFileExchangeClient();
+    $exchange->downloads['Voice1'] = 'ogg voice body';
+    $transport = new TelegramTransport(
+        buildConfig(),
+        new FakeRouterClient(),
+        $telegram,
+        new InMemoryTenantMap([]),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore(),
+        $exchange
+    );
+
+    $transport->deliverOutboundEvent(new OutboundEvent(
+        event_id: 46,
+        opaque: '-100123:79',
+        kind: 'voice',
+        text: '',
+        attachments: [[
+            'file_id' => 'Voice1',
+            'name' => 'response.ogg',
+            'mime' => 'audio/ogg',
+            'size_bytes' => 14,
+        ]],
+        meta: []
+    ));
+
+    assertSame(['Voice1'], $exchange->download_calls, 'voice exchange download calls');
+    assertSame('ogg voice body', $telegram->sent_voices[0]['content'] ?? null, 'voice content');
+    assertSame(79, $telegram->sent_voices[0]['message_thread_id'] ?? null, 'voice thread');
+    assertSame(false, is_file((string) ($exchange->download_paths[0] ?? '')), 'temporary voice removed');
+}
+
 function testVoiceQuoteCommandsSupportGroupInheritanceAndTopicOverride(): void
 {
     $telegram = new FakeTelegramClient();
@@ -1852,6 +1887,9 @@ class FakeTelegramClient implements TelegramClientInterface
     public array $sent_photos = [];
 
     /** @var list<array<string, mixed>> */
+    public array $sent_voices = [];
+
+    /** @var list<array<string, mixed>> */
     public array $edited_messages = [];
 
     /** @var list<array<string, mixed>> */
@@ -1963,6 +2001,21 @@ class FakeTelegramClient implements TelegramClientInterface
         ];
 
         return ['ok' => true, 'result' => ['message_id' => 2500]];
+    }
+
+    public function sendVoice(
+        int|string $chat_id,
+        string $file_path,
+        ?int $message_thread_id = null
+    ): array {
+        $this->sent_voices[] = [
+            'chat_id' => $chat_id,
+            'file_path' => $file_path,
+            'content' => is_file($file_path) ? (string) file_get_contents($file_path) : null,
+            'message_thread_id' => $message_thread_id,
+        ];
+
+        return ['ok' => true, 'result' => ['message_id' => 2600]];
     }
 
     public function editMessageText(int|string $chat_id, int $message_id, string $text, ?string $parse_mode = null, ?int $message_thread_id = null): void
@@ -2356,6 +2409,7 @@ testTranscriptSendsExpandableEscapedQuote();
 testUnknownOutboundKindIsSilentlyIgnored();
 testDocumentOutboundDownloadsAndSendsTelegramDocument();
 testImageOutboundDownloadsAndSendsTelegramPhoto();
+testVoiceOutboundDownloadsAndSendsTelegramVoice();
 testVoiceQuoteCommandsSupportGroupInheritanceAndTopicOverride();
 testRendererRemovesUnsupportedTableTags();
 testRendererEscapesRawAngleBracketsBeforeMarkdownConversion();
