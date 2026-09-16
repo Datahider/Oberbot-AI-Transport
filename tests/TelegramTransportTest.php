@@ -636,7 +636,7 @@ function testDocumentOutboundDownloadsAndSendsTelegramDocument(): void
         event_id: 44,
         opaque: '-100123:77',
         kind: 'document',
-        text: 'Report',
+        text: 'Report `one`',
         attachments: [[
             'file_id' => 'AbCd',
             'name' => 'report.pdf',
@@ -648,8 +648,8 @@ function testDocumentOutboundDownloadsAndSendsTelegramDocument(): void
 
     assertSame(['AbCd'], $exchange->download_calls, 'exchange download calls');
     assertSame('document body', $telegram->sent_documents[0]['content'] ?? null, 'document content');
-    assertSame('Report', $telegram->sent_documents[0]['caption'] ?? null, 'document caption');
-    assertSame(null, $telegram->sent_documents[0]['parse_mode'] ?? null, 'document parse mode');
+    assertSame('Report <code>one</code>', $telegram->sent_documents[0]['caption'] ?? null, 'document caption');
+    assertSame('HTML', $telegram->sent_documents[0]['parse_mode'] ?? null, 'document parse mode');
     assertSame(77, $telegram->sent_documents[0]['message_thread_id'] ?? null, 'document thread');
     assertSame(false, is_file((string) ($exchange->download_paths[0] ?? '')), 'temporary document removed');
 }
@@ -673,7 +673,7 @@ function testImageOutboundDownloadsAndSendsTelegramPhoto(): void
         event_id: 45,
         opaque: '-100123:78',
         kind: 'image',
-        text: 'Pixel',
+        text: 'Pixel `two`',
         attachments: [[
             'file_id' => 'Img1',
             'name' => 'pixel.png',
@@ -685,8 +685,8 @@ function testImageOutboundDownloadsAndSendsTelegramPhoto(): void
 
     assertSame(['Img1'], $exchange->download_calls, 'image exchange download calls');
     assertSame('image body', $telegram->sent_photos[0]['content'] ?? null, 'photo content');
-    assertSame('Pixel', $telegram->sent_photos[0]['caption'] ?? null, 'photo caption');
-    assertSame(null, $telegram->sent_photos[0]['parse_mode'] ?? null, 'photo parse mode');
+    assertSame('Pixel <code>two</code>', $telegram->sent_photos[0]['caption'] ?? null, 'photo caption');
+    assertSame('HTML', $telegram->sent_photos[0]['parse_mode'] ?? null, 'photo parse mode');
     assertSame(78, $telegram->sent_photos[0]['message_thread_id'] ?? null, 'photo thread');
     assertSame(false, is_file((string) ($exchange->download_paths[0] ?? '')), 'temporary image removed');
 }
@@ -710,7 +710,7 @@ function testVoiceOutboundDownloadsAndSendsTelegramVoice(): void
         event_id: 46,
         opaque: '-100123:79',
         kind: 'voice',
-        text: '<code>/voice cedar</code>',
+        text: '`/voice cedar`',
         attachments: [[
             'file_id' => 'Voice1',
             'name' => 'response.ogg',
