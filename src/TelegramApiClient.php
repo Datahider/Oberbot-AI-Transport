@@ -169,6 +169,8 @@ final class TelegramApiClient implements TelegramClientInterface
     public function sendVoice(
         int|string $chat_id,
         string $file_path,
+        ?string $caption = null,
+        ?string $parse_mode = null,
         ?int $message_thread_id = null
     ): array {
         $file_path = trim($file_path);
@@ -177,6 +179,12 @@ final class TelegramApiClient implements TelegramClientInterface
         }
 
         $payload = ['chat_id' => $chat_id];
+        if ($caption !== null && $caption !== '') {
+            $payload['caption'] = $caption;
+        }
+        if ($parse_mode !== null && $parse_mode !== '') {
+            $payload['parse_mode'] = $parse_mode;
+        }
         if ($message_thread_id !== null && $message_thread_id > 0) {
             $payload['message_thread_id'] = $message_thread_id;
         }

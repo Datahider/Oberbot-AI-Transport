@@ -49,6 +49,8 @@ interface TelegramClientInterface
     public function sendVoice(
         int|string $chat_id,
         string $file_path,
+        ?string $caption = null,
+        ?string $parse_mode = null,
         ?int $message_thread_id = null
     ): array;
 

@@ -495,8 +495,8 @@ final class TelegramTransport
         if ($this->file_exchange === null) {
             throw new RuntimeException('File exchange client is required for voice delivery');
         }
-        if ($event->text !== '' || count($event->attachments) !== 1 || !is_array($event->attachments[0])) {
-            throw new RuntimeException('Voice outbound requires empty text and exactly one attachment');
+        if (count($event->attachments) !== 1 || !is_array($event->attachments[0])) {
+            throw new RuntimeException('Voice outbound requires exactly one attachment');
         }
 
         $attachment = $event->attachments[0];
@@ -509,7 +509,13 @@ final class TelegramTransport
 
         $temp_path = $this->file_exchange->downloadFile($file_id, $filename);
         try {
-            $this->telegram->sendVoice($chat_id, $temp_path, $thread_id);
+            $this->telegram->sendVoice(
+                $chat_id,
+                $temp_path,
+                $event->text !== '' ? $event->text : null,
+                null,
+                $thread_id
+            );
         } finally {
             if (is_file($temp_path) && !unlink($temp_path)) {
                 throw new RuntimeException('Cannot remove temporary outbound voice');
