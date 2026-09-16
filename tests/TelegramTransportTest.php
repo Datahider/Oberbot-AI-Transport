@@ -710,7 +710,7 @@ function testVoiceOutboundDownloadsAndSendsTelegramVoice(): void
         event_id: 46,
         opaque: '-100123:79',
         kind: 'voice',
-        text: '/voice cedar',
+        text: '<code>/voice cedar</code>',
         attachments: [[
             'file_id' => 'Voice1',
             'name' => 'response.ogg',
@@ -722,8 +722,8 @@ function testVoiceOutboundDownloadsAndSendsTelegramVoice(): void
 
     assertSame(['Voice1'], $exchange->download_calls, 'voice exchange download calls');
     assertSame('ogg voice body', $telegram->sent_voices[0]['content'] ?? null, 'voice content');
-    assertSame('/voice cedar', $telegram->sent_voices[0]['caption'] ?? null, 'voice caption');
-    assertSame(null, $telegram->sent_voices[0]['parse_mode'] ?? null, 'voice caption parse mode');
+    assertSame('<code>/voice cedar</code>', $telegram->sent_voices[0]['caption'] ?? null, 'voice caption');
+    assertSame('HTML', $telegram->sent_voices[0]['parse_mode'] ?? null, 'voice caption parse mode');
     assertSame(79, $telegram->sent_voices[0]['message_thread_id'] ?? null, 'voice thread');
     assertSame(false, is_file((string) ($exchange->download_paths[0] ?? '')), 'temporary voice removed');
 }
