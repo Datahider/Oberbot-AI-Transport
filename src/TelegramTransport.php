@@ -513,7 +513,7 @@ final class TelegramTransport
                 $chat_id,
                 $temp_path,
                 $event->text !== '' ? $event->text : null,
-                null,
+                $event->text !== '' ? 'HTML' : null,
                 $thread_id
             );
         } finally {
