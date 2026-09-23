@@ -314,6 +314,7 @@
 - Parse mode для `final`, `commentary`, `status` — `HTML`.
 - Собственные markdown/html-converter'ы писать запрещено.
 - Для markdown->HTML используется `fastvolt/markdown`.
+- Исходный Markdown передаётся в `fastvolt/markdown` без предварительного HTML-экранирования; экранирование обычного текста, inline-code и fenced code block выполняет сама библиотека.
 - Процедура очистки несовместимых тегов переносится из старого reference-transport без отсебятины.
 
 ## Process Loop

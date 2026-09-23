@@ -808,16 +808,25 @@ function testRendererRemovesUnsupportedTableTags(): void
     assertTrue(!str_contains($rendered, '<th'), 'th tag removed');
 }
 
-function testRendererEscapesRawAngleBracketsBeforeMarkdownConversion(): void
+function testRendererEscapesAngleBracketsExactlyOnce(): void
 {
     $renderer = new TelegramTextRenderer();
-    $method = new ReflectionMethod(TelegramTextRenderer::class, 'escapeRawAngleBrackets');
-    $method->setAccessible(true);
 
-    $rendered = $method->invoke($renderer, "literal <files>\n<5 authoritative artifacts>");
-
-    assertTrue(str_contains($rendered, '&lt;files>'), 'files tag escaped');
-    assertTrue(str_contains($rendered, '&lt;5 authoritative artifacts>'), 'pseudo tag escaped');
+    assertSame(
+        'literal &lt;files&gt; and &lt;5 authoritative artifacts&gt;',
+        $renderer->renderFinal('literal <files> and <5 authoritative artifacts>'),
+        'plain pseudo tags escaped once'
+    );
+    assertSame(
+        '<code>&lt;files&gt; and &lt;5 authoritative artifacts&gt;</code>',
+        $renderer->renderFinal('`<files> and <5 authoritative artifacts>`'),
+        'inline code pseudo tags escaped once'
+    );
+    assertSame(
+        "<pre><code>&lt;files&gt;\n&lt;5 authoritative artifacts&gt;</code></pre>",
+        $renderer->renderFinal("```text\n<files>\n<5 authoritative artifacts>\n```"),
+        'fenced code pseudo tags escaped once'
+    );
 }
 
 function testIngressRunnerRegistersBotCommandsBeforePolling(): void
@@ -2426,7 +2435,7 @@ testImageOutboundDownloadsAndSendsTelegramPhoto();
 testVoiceOutboundDownloadsAndSendsTelegramVoice();
 testVoiceQuoteCommandsSupportGroupInheritanceAndTopicOverride();
 testRendererRemovesUnsupportedTableTags();
-testRendererEscapesRawAngleBracketsBeforeMarkdownConversion();
+testRendererEscapesAngleBracketsExactlyOnce();
 testIngressRunnerRegistersBotCommandsBeforePolling();
 testIngressRunnerWaitsAndRetriesAfterTelegramUnavailable();
 testIngressRunnerWaitsAndRetriesAfterTelegramRateLimit();

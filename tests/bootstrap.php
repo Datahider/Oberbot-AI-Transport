@@ -27,6 +27,7 @@ final class Markdown
     public function getHtml(): string
     {
         $html = htmlspecialchars($this->content, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $html = preg_replace('/```(?:[^\n]*)\n(.*?)\n```/us', '<pre><code>$1</code></pre>', $html);
         $html = preg_replace('/`([^`]+)`/u', '<code>$1</code>', $html);
 
         return (string) $html;
