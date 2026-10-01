@@ -211,30 +211,11 @@ final class TelegramTransport
             ];
         }
 
-        $tenant = $this->tenant_map->tenantForChat($message->chat_id);
-        if ($tenant === null) {
-            RuntimeLog::info('Rejected inbound message without tenant binding', [
-                'chat_id' => $message->chat_id,
-                'opaque' => $message->opaque,
-            ]);
-            return [
-                'accepted' => false,
-                'messages' => [
-                    $this->sendTextReply(
-                        $message,
-                        $this->config->unknown_chat_text,
-                        null,
-                        true
-                    ),
-                ],
-            ];
-        }
-
         // Disabled for now: for small files Telegram renders the animation too late
         // to be useful, so the transport skips sending temporary progress feedback.
         $progress_message_id = null;
         $response = $this->router->postIngress([
-            'tenant' => $tenant,
+            'binding' => $message->chat_id,
             'opaque' => $message->opaque,
             'kind' => 'message',
             'text' => $message->text,
@@ -245,7 +226,7 @@ final class TelegramTransport
         RuntimeLog::info('Forwarded inbound message to Router', [
             'chat_id' => $message->chat_id,
             'opaque' => $message->opaque,
-            'tenant' => $tenant,
+            'binding' => $message->chat_id,
             'accepted' => $response['accepted'] ?? null,
             'event_id' => $response['event_id'] ?? null,
         ]);

@@ -28,7 +28,7 @@ final class ApiClient implements RouterClientInterface
 
     public function postIngress(array $payload): array
     {
-        return $this->postJson('/api/v1/transport/ingress', $payload);
+        return $this->postJson('/api/v2/transport/ingress', $payload);
     }
 
     public function getOutboundEvents(int $after_id, int $wait, int $limit): array
