@@ -301,6 +301,8 @@ function testMediaMessageUploadsSupportedTelegramFilesAndForwardsAttachments(): 
     assertSame(true, $result['accepted'], 'media accepted');
     assertSame([], $telegram->sent_animations, 'progress animation disabled');
     assertSame([], $telegram->deleted_messages, 'progress animation delete skipped');
+    assertSame('100', $router->ingress_payloads[0]['binding'] ?? null, 'media binding forwarded');
+    assertSame(false, array_key_exists('tenant', $router->ingress_payloads[0]), 'media tenant omitted');
     assertSame('files attached', $router->ingress_payloads[0]['text'] ?? null, 'media caption forwarded');
     assertSame([
         [
@@ -406,7 +408,7 @@ function testStatusCommandDefaultsToEnabled(): void
     assertSame('Статус: on', $reply['messages'][0]['text'] ?? null, 'status text');
 }
 
-function testUnknownChatReplySkipsRouterIngress(): void
+function testUnmappedChatIsForwardedToRouterV2(): void
 {
     $router = new FakeRouterClient();
     $telegram = new FakeTelegramClient();
@@ -432,8 +434,11 @@ function testUnknownChatReplySkipsRouterIngress(): void
         ],
     ]);
 
-    assertSame([], $router->ingress_payloads, 'router ingress skipped');
-    assertSame('unknown chat', $telegram->sent_messages[0]['text'] ?? null, 'unknown chat text');
+    assertSame(1, count($router->ingress_payloads), 'unmapped chat forwarded');
+    assertSame('100', $router->ingress_payloads[0]['binding'] ?? null, 'unmapped chat binding');
+    assertSame('100', $router->ingress_payloads[0]['opaque'] ?? null, 'unmapped chat opaque');
+    assertSame(false, array_key_exists('tenant', $router->ingress_payloads[0]), 'tenant omitted from v2 ingress');
+    assertSame([], $telegram->sent_messages, 'transport does not reject unmapped chat');
 }
 
 function testCommentarySendsTypingAfterMessage(): void
@@ -2422,7 +2427,7 @@ testNormalizerBuildsInboundVoiceAttachment();
 testMediaMessageUploadsSupportedTelegramFilesAndForwardsAttachments();
 testOversizedMediaMessageRepliesWithDiagnosticAndSkipsUpload();
 testStatusCommandDefaultsToEnabled();
-testUnknownChatReplySkipsRouterIngress();
+testUnmappedChatIsForwardedToRouterV2();
 testCommentarySendsTypingAfterMessage();
 testLongCommentaryFallsBackToDocumentWithCaption();
 testWarningUsesWarningPrefixAndMarkdown();
