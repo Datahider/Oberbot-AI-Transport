@@ -60,23 +60,25 @@
 - Transport хранит собственную MariaDB-схему через `losthost/db`.
 - На старте transport обязан вызвать `initDataStructure()` для всех своих таблиц.
 - Минимальные таблицы:
-  - привязка `chat_id -> tenant`
   - status state по `opaque`
   - long polling state процесса
+- Таблица прежних привязок `chat_id -> tenant` сохраняется только как источник
+  миграции и не используется runtime после переключения на Router v2.
 
 ## Session Identity Contract
 - `opaque` передаётся в `Router` как opaque string без transport-side интерпретации со стороны `Router`.
 - `Transport-Telegram` сам формирует `opaque` из Telegram target:
   - если `thread_id` отсутствует: `<chat_id>`
   - если `thread_id` присутствует: `<chat_id>:<thread_id>`
-- Для разных thread одного `chat_id` используются разные `opaque`, но один и тот же tenant.
+- Для разных thread одного `chat_id` используются разные `opaque`, но один и
+  тот же `binding`, равный строковому `chat_id`.
 
 ## Ingress Contract
 - Каждое поддержанное входящее `message` нормализуется в ingress event:
 
 ```json
 {
-  "tenant": "user@server",
+  "binding": "-100123",
   "opaque": "-100123:77",
   "kind": "message",
   "text": "user input",
@@ -98,7 +100,12 @@
 ```
 
 ### Ingress Rules
-- `tenant` определяется только по `chat_id` через локальную БД.
+- Transport отправляет ingress в `POST /api/v2/transport/ingress`.
+- `binding` равен полному строковому `chat_id` без `thread_id`.
+- `opaque` сохраняет прежний формат и включает `thread_id` для forum topic.
+- Transport не определяет и не передаёт `tenant`.
+- Каждое поддержанное и не отклонённое локальными transport-правилами message
+  передаётся Router независимо от наличия binding.
 - Для group/supergroup ingress-ignore scope также задаёт режим доступа:
   - в ignored scope transport не удаляет сообщения участников и не передаёт их в `Router`;
   - в ignored scope локально обрабатывается только `/unignore` от creator/administrator группы;
@@ -107,7 +114,7 @@
   - сообщение, отправленное анонимным administrator от имени той же group/supergroup, считается administrator message;
   - private chat этой фильтрации не подлежит.
 - Для удаления чужих сообщений bot должен быть administrator с правом `can_delete_messages`.
-- Если для `chat_id` нет tenant mapping, transport отвечает текстом из `transport.unknown_chat_text` и не вызывает `Router`.
+- Решение о наличии binding и дальнейшей маршрутизации принимает Router.
 - `kind` на первом этапе всегда `message`.
 - `text` может быть пустым, если message содержит supported media без подписи.
 - Для message с text-only `attachments` равен пустому массиву.
@@ -324,6 +331,32 @@
   - делает long polling `Router` outbound
   - отправляет outbound в нужные Telegram chats/topics
 - Один transport process обслуживает все чаты данного `transport_instance_id`.
+
+## Binding Migration Contract
+
+- До переключения ingress все строки прежней локальной таблицы
+  `chat_id -> tenant` должны быть перенесены в Router.
+- Канонический экспорт запускается на действующем Transport:
+
+```bash
+php bin/export-bindings.php
+```
+
+- Команда пишет в standard output JSON Lines, по одному объекту на binding:
+
+```json
+{"tenant":"user","binding":"123456789","label":"Telegram 123456789"}
+```
+
+- Экспорт не изменяет локальную таблицу.
+- Каждая строка импортируется штатной Router-командой
+  `bin/provision-binding.php` с фактическим `transport_instance_id`, полученным
+  Router из transport token. Значение локального
+  `transport.transport_instance_id` не считается источником истины для Router
+  authentication principal.
+- До переключения количества и пары `binding -> tenant` в обеих системах
+  должны совпасть.
+- Локальная таблица после переключения не удаляется автоматически.
 
 ## Example Config
 
