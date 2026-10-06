@@ -82,7 +82,7 @@ final class BotManagementHandler
                 $existing?->is_default ?? false,
                 $existing?->deletion_protected ?? false
             ));
-            $token_client->setMyCommands(TelegramBotCommandCatalog::all());
+            TelegramBotCommandCatalog::install($token_client);
             $token_client->setWebhook(rtrim($this->webhook_base_url, '/') . '/' . $bot_key, $webhook_secret, $this->webhook_ip_address);
             $client->sendMessage($chat_id, $existing === null ? 'Бот @' . $username . ' подключён.' : 'Token бота @' . $username . ' обновлён.');
             $this->pending->clear($this->current_bot->bot_key, $chat_id, $user_id);

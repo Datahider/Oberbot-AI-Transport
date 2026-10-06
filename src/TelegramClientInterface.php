@@ -4,13 +4,8 @@ declare(strict_types=1);
 
 namespace CodexMultitenant\TransportTelegram;
 
-interface TelegramClientInterface
+interface TelegramClientInterface extends TelegramCommandClientInterface
 {
-    /**
-     * @param list<array{command: string, description: string}> $commands
-     */
-    public function setMyCommands(array $commands): void;
-
     /**
      * @return array<string, mixed>
      */

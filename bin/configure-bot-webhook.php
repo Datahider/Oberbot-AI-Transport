@@ -22,7 +22,7 @@ DatabaseBootstrap::connect($config);
 $registry = new DbBotRegistry(new BotTokenCipher($config->telegram_bot_token_encryption_key));
 $bot = $registry->botByKey($bot_key);
 $client = new TelegramApiClient($bot->token, $config->telegram_base_url, $config->telegram_endpoint_prefix);
-$client->setMyCommands(TelegramBotCommandCatalog::all());
+TelegramBotCommandCatalog::install($client);
 $client->setWebhook(
     $config->telegram_webhook_base_url . '/' . $bot->bot_key,
     $bot->webhook_secret,

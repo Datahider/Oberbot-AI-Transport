@@ -45,7 +45,7 @@ $registry->register(new BotRecord(
 ));
 
 if (!$skip_webhook) {
-    $client->setMyCommands(TelegramBotCommandCatalog::all());
+    TelegramBotCommandCatalog::install($client);
     $client->setWebhook(
         $config->telegram_webhook_base_url . '/' . $bot_key,
         $webhook_secret,

@@ -857,9 +857,10 @@ function testIngressRunnerRegistersBotCommandsBeforePolling(): void
         assertSame('stop polling', $e->getMessage(), 'polling stop');
     }
 
-    assertSame(TelegramBotCommandCatalog::all(), $telegram->bot_commands, 'registered bot commands');
+    assertSame(TelegramBotCommandCatalog::privateChats(), $telegram->command_sets['all_private_chats'] ?? null, 'private bot commands');
+    assertSame(TelegramBotCommandCatalog::groupAdministrators(), $telegram->command_sets['all_chat_administrators'] ?? null, 'group admin commands');
     $limits_commands = array_values(array_filter(
-        $telegram->bot_commands,
+        $telegram->command_sets['all_private_chats'] ?? [],
         static fn (array $command): bool => ($command['command'] ?? null) === 'limits'
     ));
     assertSame([
@@ -1935,6 +1936,7 @@ class FakeTelegramClient implements TelegramClientInterface
     public ?RuntimeException $edit_forum_topic_exception = null;
     public bool $throw_on_get_updates = false;
     public int $get_updates_calls = 0;
+    public array $command_sets = [];
     /** @var array<string, array<string, mixed>> */
     public array $file_results = [];
     /** @var array<string, string> */
@@ -1947,6 +1949,7 @@ class FakeTelegramClient implements TelegramClientInterface
     public function setMyCommands(array $commands, ?array $scope = null): void
     {
         $this->bot_commands = $commands;
+        $this->command_sets[(string) ($scope['type'] ?? 'default')] = $commands;
     }
 
     /**

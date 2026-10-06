@@ -6,6 +6,9 @@ namespace CodexMultitenant\TransportTelegram;
 
 final class TelegramBotCommandCatalog
 {
+    private const PRIVATE_ONLY = ['addbot', 'delbot', 'updatetoken'];
+    private const GROUP_ONLY = ['ignore', 'unignore', 'done'];
+
     /**
      * @return list<array{command: string, description: string}>
      */
@@ -81,5 +84,24 @@ final class TelegramBotCommandCatalog
                 'description' => 'Показать текущие лимиты Codex',
             ],
         ];
+    }
+
+    /** @return list<array{command: string, description: string}> */
+    public static function privateChats(): array
+    {
+        return array_values(array_filter(self::all(), fn(array $command): bool => !in_array($command['command'], self::GROUP_ONLY, true)));
+    }
+
+    /** @return list<array{command: string, description: string}> */
+    public static function groupAdministrators(): array
+    {
+        return array_values(array_filter(self::all(), fn(array $command): bool => !in_array($command['command'], self::PRIVATE_ONLY, true)));
+    }
+
+    public static function install(TelegramCommandClientInterface $client): void
+    {
+        $client->setMyCommands([], ['type' => 'default']);
+        $client->setMyCommands(self::privateChats(), ['type' => 'all_private_chats']);
+        $client->setMyCommands(self::groupAdministrators(), ['type' => 'all_chat_administrators']);
     }
 }

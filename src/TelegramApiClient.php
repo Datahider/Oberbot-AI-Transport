@@ -36,7 +36,7 @@ final class TelegramApiClient implements TelegramClientInterface, BotManagementC
         $this->base_url = $path . $token . '/';
     }
 
-    public function setMyCommands(array $commands): void
+    public function setMyCommands(array $commands, ?array $scope = null): void
     {
         $normalized_commands = [];
 
@@ -53,9 +53,11 @@ final class TelegramApiClient implements TelegramClientInterface, BotManagementC
             ];
         }
 
-        $this->request('setMyCommands', [
+        $payload = [
             'commands' => $normalized_commands,
-        ]);
+        ];
+        if ($scope !== null) $payload['scope'] = $scope;
+        $this->request('setMyCommands', $payload);
     }
 
     /** @return array<string, mixed> */
