@@ -374,6 +374,8 @@
 - Сообщение с bot token удаляется из Telegram до вызова `getMe`, не логируется и никогда не передаётся в Router.
 - `/addbot`: token проверяется через `getMe`. Для нового Telegram user ID Transport создаёт `bot_key` и webhook secret. Для уже зарегистрированного Telegram user ID Transport заменяет только token и актуальный username, сохраняя `bot_key`, webhook secret, routes, `is_default` и `deletion_protected`. Затем Transport устанавливает команды и webhook и сообщает, был бот добавлен или его token обновлён.
 - `/updatetoken` не запрашивает token. Он объясняет, что новый token нужно отправить через `/addbot` любому из ботов с `deletion_protected=true`, и выводит до 5 случайных `@username` таких ботов. Команда обрабатывается локально и не уходит в Router.
+- Telegram command menu по умолчанию пустое. Для `all_private_chats` показываются все команды, кроме групповых `/ignore`, `/unignore`, `/done`. Для `all_chat_administrators` показываются все команды, кроме личных `/addbot`, `/delbot`, `/updatetoken`. Обычные участники групп меню команд не видят.
+- Области command menu устанавливаются при новой регистрации, обновлении token и административной перенастройке webhook.
 - `/delbot`: `getMe` переданного token обязан вернуть Telegram user ID текущего бота. Это единственная проверка права на удаление.
 - Каждый bot record имеет `deletion_protected`. Защищённый бот не удаляется через Telegram даже при верном token. Признак меняется только административно.
 - Перед удалением бот во всех чатах типа `group`/`supergroup`, где он является активным, отправляет: `Всем спасибо, я пошел. Продолжить вы можете с другими ботами:` и до 5 случайных `@username` ботов с `deletion_protected=true`.
