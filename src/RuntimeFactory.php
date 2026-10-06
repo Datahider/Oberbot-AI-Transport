@@ -95,4 +95,39 @@ final class RuntimeFactory
             new DbCursorStore()
         );
     }
+
+    public static function createWebhookEndpoint(string $config_path): WebhookEndpoint
+    {
+        $config = TelegramTransportConfig::fromConfigPath($config_path);
+        DatabaseBootstrap::connect($config);
+        DatabaseBootstrap::initDataStructure();
+
+        $router = new ApiClient(
+            $config->router_base_url,
+            $config->router_token,
+            new CurlHttpClient()
+        );
+
+        $telegram = new TelegramApiClient(
+            $config->telegram_bot_token,
+            $config->telegram_base_url,
+            $config->telegram_endpoint_prefix
+        );
+
+        return new WebhookEndpoint(
+            $config->telegram_webhook_secret_token,
+            new TelegramTransport(
+                $config,
+                $router,
+                $telegram,
+                new DbTenantMap(),
+                new DbStatusStateStore(),
+                new DbIgnoreStateStore(),
+                new FileExchangeApiClient(
+                    $config->file_exchange_base_url,
+                    $config->file_exchange_token
+                )
+            )
+        );
+    }
 }

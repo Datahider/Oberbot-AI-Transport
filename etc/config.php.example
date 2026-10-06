@@ -11,6 +11,7 @@ return [
         'bot_token' => 'telegram-bot-token',
         'base_url' => 'https://api.telegram.org',
         'endpoint_prefix' => 'bot',
+        'webhook_secret_token' => 'telegram-webhook-secret-token',
     ],
     'transport' => [
         'transport_instance_id' => 'telegram-main',

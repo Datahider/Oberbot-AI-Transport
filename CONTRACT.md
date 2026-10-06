@@ -324,6 +324,21 @@
 - Исходный Markdown передаётся в `fastvolt/markdown` без предварительного HTML-экранирования; экранирование обычного текста, inline-code и fenced code block выполняет сама библиотека.
 - Процедура очистки несовместимых тегов переносится из старого reference-transport без отсебятины.
 
+## Telegram Webhook Endpoint
+
+- Подготовительный webhook endpoint публикуется отдельно от действующего polling-процесса по адресу `https://webhook.codexgate.ru/`.
+- Наличие endpoint само по себе не переключает Telegram с `getUpdates`: вызов `setWebhook` выполняется только отдельным согласованным шагом.
+- Endpoint принимает только `POST` с JSON object Telegram Update.
+- Запрос обязан содержать заголовок `X-Telegram-Bot-Api-Secret-Token`, в точности совпадающий с `telegram.webhook_secret_token`.
+- Отсутствующий или неверный secret возвращает `401` без обработки payload.
+- Метод, отличный от `POST`, возвращает `405`.
+- Пустой, невалидный JSON или JSON не-object возвращает `400`.
+- После успешного вызова `TelegramTransport::handleIncomingUpdate()` endpoint возвращает `204` без тела, в том числе для неподдержанного Telegram Update.
+- `RouterUnavailableException`, `TelegramUnavailableException` и `TelegramRateLimitException` возвращают `503`, чтобы Telegram повторил доставку.
+- Любая иная ошибка обработки возвращает `500`; ошибка пишется в runtime log, а детали исключения клиенту не раскрываются.
+- Endpoint не хранит Telegram `update_id` и не изменяет polling cursor.
+- До отдельного решения владельца polling-процесс и его данные остаются без изменений.
+
 ## Process Loop
 - Один процесс transport instance:
   - делает Telegram long polling
@@ -372,6 +387,7 @@ return [
         'bot_token' => 'telegram-bot-token',
         'base_url' => 'https://api.telegram.org',
         'endpoint_prefix' => 'bot',
+        'webhook_secret_token' => 'telegram-webhook-secret-token',
     ],
     'file_exchange' => [
         'base_url' => 'https://files.ioannidis.ru',

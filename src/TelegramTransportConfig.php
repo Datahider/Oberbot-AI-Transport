@@ -29,7 +29,8 @@ final class TelegramTransportConfig
         public readonly string $db_user = '',
         public readonly string $db_pass = '',
         public readonly string $db_name = '',
-        public readonly string $db_prefix = ''
+        public readonly string $db_prefix = '',
+        public readonly string $telegram_webhook_secret_token = ''
     ) {
     }
 
@@ -52,6 +53,7 @@ final class TelegramTransportConfig
         $telegram_bot_token = trim((string) ($telegram['bot_token'] ?? ''));
         $telegram_base_url = rtrim(trim((string) ($telegram['base_url'] ?? '')), '/');
         $telegram_endpoint_prefix = trim((string) ($telegram['endpoint_prefix'] ?? 'bot'), '/');
+        $telegram_webhook_secret_token = trim((string) ($telegram['webhook_secret_token'] ?? ''));
         $file_exchange_base_url = rtrim(trim((string) ($file_exchange['base_url'] ?? '')), '/');
         $file_exchange_token = trim((string) ($file_exchange['token'] ?? ''));
         $transport_instance_id = trim((string) ($transport['transport_instance_id'] ?? ''));
@@ -141,7 +143,8 @@ final class TelegramTransportConfig
             db_user: $db_user,
             db_pass: $db_pass,
             db_name: $db_name,
-            db_prefix: $db_prefix
+            db_prefix: $db_prefix,
+            telegram_webhook_secret_token: $telegram_webhook_secret_token
         );
     }
 
