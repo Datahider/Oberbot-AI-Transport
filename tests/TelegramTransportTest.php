@@ -12,6 +12,7 @@ use CodexMultitenant\TransportTelegram\IngressRunner;
 use CodexMultitenant\TransportTelegram\RuntimeLog;
 use CodexMultitenant\TransportTelegram\StatusState;
 use CodexMultitenant\TransportTelegram\StatusStateStoreInterface;
+use CodexMultitenant\TransportTelegram\GroupAccessStoreInterface;
 use CodexMultitenant\TransportTelegram\TelegramBotCommandCatalog;
 use CodexMultitenant\TransportTelegram\TelegramClientInterface;
 use CodexMultitenant\TransportTelegram\TelegramRateLimitException;
@@ -1249,6 +1250,53 @@ function testActiveGroupScopeForwardsAdministratorMessage(): void
     assertSame('admin message', $router->ingress_payloads[0]['text'] ?? null, 'administrator message forwarded');
 }
 
+function testGroupCreatorCanAllowMemberMessages(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $telegram->chat_member_results['-100123:7'] = ['status' => 'creator'];
+    $telegram->chat_member_results['-100123:42'] = ['status' => 'member'];
+    $access = new InMemoryGroupAccessStore();
+    $transport = new TelegramTransport(buildConfig(), $router, $telegram, new InMemoryTenantMap([]), new InMemoryStatusStateStore(), new InMemoryIgnoreStateStore(), null, $access);
+
+    $changed = $transport->handleIncomingUpdate(['message' => ['message_id' => 2100, 'text' => '/access members', 'from' => ['id' => 7], 'chat' => ['id' => -100123, 'type' => 'supergroup']]]);
+    $member = $transport->handleIncomingUpdate(['message' => ['message_id' => 2101, 'text' => 'member input', 'from' => ['id' => 42], 'chat' => ['id' => -100123, 'type' => 'supergroup']]]);
+
+    assertSame('members', $access->modeForGroup('-100123'), 'creator changed access');
+    assertSame('Доступ: members', $changed['messages'][0]['text'] ?? null, 'access confirmation');
+    assertSame(true, $member['accepted'], 'member accepted');
+    assertSame('member input', $router->ingress_payloads[0]['text'] ?? null, 'member forwarded');
+}
+
+function testGroupAdministratorCannotChangeWriteAccess(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $telegram->chat_member_results['-100123:7'] = ['status' => 'administrator'];
+    $access = new InMemoryGroupAccessStore();
+    $transport = new TelegramTransport(buildConfig(), $router, $telegram, new InMemoryTenantMap([]), new InMemoryStatusStateStore(), new InMemoryIgnoreStateStore(), null, $access);
+
+    $result = $transport->handleIncomingUpdate(['message' => ['message_id' => 2102, 'text' => '/access members', 'from' => ['id' => 7], 'chat' => ['id' => -100123, 'type' => 'supergroup']]]);
+
+    assertSame('admins', $access->modeForGroup('-100123'), 'administrator cannot change access');
+    assertSame('Изменить доступ может только владелец группы.', $result['messages'][0]['text'] ?? null, 'owner required');
+    assertSame([], $router->ingress_payloads, 'access command local');
+}
+
+function testMemberCanViewMembersWriteAccess(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $telegram->chat_member_results['-100123:42'] = ['status' => 'member'];
+    $access = new InMemoryGroupAccessStore(['-100123' => 'members']);
+    $transport = new TelegramTransport(buildConfig(), $router, $telegram, new InMemoryTenantMap([]), new InMemoryStatusStateStore(), new InMemoryIgnoreStateStore(), null, $access);
+
+    $result = $transport->handleIncomingUpdate(['message' => ['message_id' => 2103, 'text' => '/access', 'from' => ['id' => 42], 'chat' => ['id' => -100123, 'type' => 'supergroup']]]);
+
+    assertSame('Доступ: members', $result['messages'][0]['text'] ?? null, 'member views access');
+    assertSame([], $router->ingress_payloads, 'view command local');
+}
+
 function testActiveGroupScopeForwardsAnonymousAdministratorMessage(): void
 {
     $router = new FakeRouterClient();
@@ -2262,6 +2310,13 @@ final class InMemoryIgnoreStateStore implements IgnoreStateStoreInterface
     }
 }
 
+final class InMemoryGroupAccessStore implements GroupAccessStoreInterface
+{
+    public function __construct(private array $modes = []) {}
+    public function modeForGroup(string $chat_id): string { return $this->modes[$chat_id] ?? 'admins'; }
+    public function setModeForGroup(string $chat_id, string $mode): void { $this->modes[$chat_id] = $mode; }
+}
+
 final class InMemoryCursorStore implements CursorStoreInterface
 {
     public int $router_after_id = 0;
@@ -2451,6 +2506,9 @@ testStatusEventCreatesInstructionAndStatusMessage();
 testIgnoreCommandSuppressesForumThreadIngressOnly();
 testActiveGroupScopeDeletesNonAdministratorMessage();
 testActiveGroupScopeForwardsAdministratorMessage();
+testGroupCreatorCanAllowMemberMessages();
+testGroupAdministratorCannotChangeWriteAccess();
+testMemberCanViewMembersWriteAccess();
 testActiveGroupScopeForwardsAnonymousAdministratorMessage();
 testIgnoredGroupScopeLeavesMemberMessagesAndCommandsUntouched();
 testIgnoredGroupScopeAllowsAdministratorToUnignore();
