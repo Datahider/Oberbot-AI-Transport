@@ -23,6 +23,17 @@ final class BotAwareIncomingUpdateHandler implements IncomingUpdateHandlerInterf
 
         $message = $update['message'] ?? null;
         $chat = is_array($message) ? ($message['chat'] ?? null) : null;
+        if (is_array($chat) && in_array(($chat['type'] ?? null), ['group', 'supergroup'], true) && isset($chat['id'])) {
+            $active_bot = $this->registry->activeBotForChat((string) $chat['id']);
+            if ($active_bot->bot_key !== $this->bot->bot_key) {
+                RuntimeLog::info('Ignored group update received by inactive bot', [
+                    'chat_id' => (string) $chat['id'],
+                    'bot_key' => $this->bot->bot_key,
+                    'active_bot_key' => $active_bot->bot_key,
+                ]);
+                return ['accepted' => false, 'messages' => []];
+            }
+        }
         if (is_array($chat) && ($chat['type'] ?? null) === 'private' && isset($chat['id'])) {
             $chat_id = (string) $chat['id'];
             $this->lock->synchronized('telegram-bot-route:' . $chat_id, function () use ($chat_id): void {

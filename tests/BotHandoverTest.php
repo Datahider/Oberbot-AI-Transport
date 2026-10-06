@@ -151,8 +151,29 @@ function testPrivateMessageActivatesReceivingBotBeforeForwarding(): void
     assertSame([$update], $next->updates, 'private update forwarded');
 }
 
+function testInactiveBotGroupMessageIsNotForwarded(): void
+{
+    $old = bot('old', 1); $new = bot('new', 2);
+    $registry = new MemoryBotRegistry(['old' => $old, 'new' => $new], 'old', ['-100' => 'new']);
+    $next = new RecordingIncomingHandler();
+    $lock = new ImmediateChatLock();
+    $handler = new BotAwareIncomingUpdateHandler(
+        $old,
+        $registry,
+        $lock,
+        new BotHandoverHandler($registry, $lock, new MemoryBotClientFactory()),
+        $next
+    );
+
+    $result = $handler->handleIncomingUpdate(['message' => ['chat' => ['id' => -100, 'type' => 'supergroup'], 'text' => 'hello']]);
+
+    assertSame(false, $result['accepted'], 'inactive group bot rejected');
+    assertSame([], $next->updates, 'inactive group update not forwarded');
+}
+
 testBotTokenCipherRoundTrip();
 testHandoverReplacesActiveBotUnderOneChatLock();
 testNextHandoverSeesPreviousNewBotAsOld();
 testHandoverTreatsDefaultBotAsOldWithoutExplicitRoute();
 testPrivateMessageActivatesReceivingBotBeforeForwarding();
+testInactiveBotGroupMessageIsNotForwarded();
