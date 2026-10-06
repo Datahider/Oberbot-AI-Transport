@@ -423,6 +423,9 @@ return [
         'base_url' => 'https://api.telegram.org',
         'endpoint_prefix' => 'bot',
         'webhook_secret_token' => 'telegram-webhook-secret-token',
+        'bot_token_encryption_key' => 'base64-encoded-32-byte-key',
+        'webhook_base_url' => 'https://webhook.codexgate.ru:8443',
+        'webhook_ip_address' => '88.99.59.157',
     ],
     'file_exchange' => [
         'base_url' => 'https://files.ioannidis.ru',
