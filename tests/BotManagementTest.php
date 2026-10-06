@@ -48,10 +48,10 @@ final class ManagementRegistry implements BotRegistryInterface
 
 final class ManagementClient implements BotManagementClientInterface
 {
-    public array $messages = []; public array $deleted_messages = []; public array $left = []; public bool $webhook_deleted = false; public bool $webhook_set = false;
+    public array $messages = []; public array $deleted_messages = []; public array $left = []; public array $command_sets = []; public bool $webhook_deleted = false; public bool $webhook_set = false;
     public function __construct(public array $identity = []) {}
     public function getMe(): array { return $this->identity; }
-    public function setMyCommands(array $commands): void {}
+    public function setMyCommands(array $commands, ?array $scope = null): void { $this->command_sets[] = [$commands, $scope]; }
     public function setWebhook(string $url, string $secret_token, string $ip_address): void { $this->webhook_set = true; }
     public function deleteWebhook(): void { $this->webhook_deleted = true; }
     public function deleteMessage(int|string $chat_id, int $message_id): void { $this->deleted_messages[] = [(string)$chat_id, $message_id]; }
@@ -79,6 +79,11 @@ function testAddBotConsumesTokenAndRegistersWebhook(): void
     assertSame([['7', 11]], $current_client->deleted_messages, 'token deleted before processing');
     assertTrue($new_client->webhook_set, 'new webhook configured');
     assertTrue($registry->hasTelegramUserId(2), 'new bot registered');
+    assertSame(['default', 'all_private_chats', 'all_chat_administrators'], array_map(fn(array $set) => $set[1]['type'] ?? '', $new_client->command_sets), 'command scopes configured');
+    assertTrue(in_array('addbot', array_column($new_client->command_sets[1][0], 'command'), true), 'addbot visible in private');
+    assertTrue(!in_array('addbot', array_column($new_client->command_sets[2][0], 'command'), true), 'addbot hidden in groups');
+    assertTrue(!in_array('done', array_column($new_client->command_sets[1][0], 'command'), true), 'done hidden in private');
+    assertTrue(in_array('done', array_column($new_client->command_sets[2][0], 'command'), true), 'done visible to group admins');
 }
 
 function testProtectedBotCannotBeDeleted(): void

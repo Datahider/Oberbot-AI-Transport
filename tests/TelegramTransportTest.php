@@ -1944,7 +1944,7 @@ class FakeTelegramClient implements TelegramClientInterface
     /** @var list<string> */
     public array $download_file_calls = [];
 
-    public function setMyCommands(array $commands): void
+    public function setMyCommands(array $commands, ?array $scope = null): void
     {
         $this->bot_commands = $commands;
     }
