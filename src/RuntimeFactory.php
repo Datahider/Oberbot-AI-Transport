@@ -57,7 +57,8 @@ final class RuntimeFactory
                 new FileExchangeApiClient(
                     $config->file_exchange_base_url,
                     $config->file_exchange_token
-                )
+                ),
+                new DbGroupAccessStore()
             ),
             new DbCursorStore()
         );
@@ -89,7 +90,8 @@ final class RuntimeFactory
                 new FileExchangeApiClient(
                     $config->file_exchange_base_url,
                     $config->file_exchange_token
-                )
+                ),
+                new DbGroupAccessStore()
             ),
             new DbCursorStore()
         );
@@ -125,7 +127,8 @@ final class RuntimeFactory
             new FileExchangeApiClient(
                 $config->file_exchange_base_url,
                 $config->file_exchange_token
-            )
+            ),
+            new DbGroupAccessStore()
         );
         $lock = new DbChatLock();
         $clients = new TelegramBotClientFactory($config->telegram_base_url, $config->telegram_endpoint_prefix);

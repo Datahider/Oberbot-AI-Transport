@@ -1297,6 +1297,22 @@ function testMemberCanViewMembersWriteAccess(): void
     assertSame([], $router->ingress_payloads, 'view command local');
 }
 
+function testMembersWriteAccessDoesNotGrantAdministrativeCommands(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $telegram->chat_member_results['-100123:42'] = ['status' => 'member'];
+    $ignore = new InMemoryIgnoreStateStore();
+    $access = new InMemoryGroupAccessStore(['-100123' => 'members']);
+    $transport = new TelegramTransport(buildConfig(), $router, $telegram, new InMemoryTenantMap([]), new InMemoryStatusStateStore(), $ignore, null, $access);
+
+    $result = $transport->handleIncomingUpdate(['message' => ['message_id' => 2104, 'message_thread_id' => 77, 'text' => '/ignore', 'from' => ['id' => 42], 'chat' => ['id' => -100123, 'type' => 'supergroup']]]);
+
+    assertSame(false, $ignore->isIgnored('-100123:77'), 'member cannot ignore topic');
+    assertSame('Команда доступна только администраторам группы.', $result['messages'][0]['text'] ?? null, 'administrator required');
+    assertSame([], $router->ingress_payloads, 'administrative command local');
+}
+
 function testActiveGroupScopeForwardsAnonymousAdministratorMessage(): void
 {
     $router = new FakeRouterClient();
@@ -2509,6 +2525,7 @@ testActiveGroupScopeForwardsAdministratorMessage();
 testGroupCreatorCanAllowMemberMessages();
 testGroupAdministratorCannotChangeWriteAccess();
 testMemberCanViewMembersWriteAccess();
+testMembersWriteAccessDoesNotGrantAdministrativeCommands();
 testActiveGroupScopeForwardsAnonymousAdministratorMessage();
 testIgnoredGroupScopeLeavesMemberMessagesAndCommandsUntouched();
 testIgnoredGroupScopeAllowsAdministratorToUnignore();

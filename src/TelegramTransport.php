@@ -27,7 +27,8 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
         private TenantMapInterface $tenant_map,
         private StatusStateStoreInterface $status_store,
         private IgnoreStateStoreInterface $ignore_store,
-        private ?FileExchangeClientInterface $file_exchange = null
+        private ?FileExchangeClientInterface $file_exchange = null,
+        private ?GroupAccessStoreInterface $group_access = null
     ) {
         $this->normalizer = new TelegramUpdateNormalizer();
         $this->renderer = new TelegramTextRenderer();
@@ -50,10 +51,31 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
             ];
         }
 
+        if (!$this->isGroupMessage($message) && $this->parseAccessCommand($message->text) !== false) {
+            return ['accepted' => true, 'messages' => [$this->sendTextReply($message, 'Команда /access работает только в группах.', null, true)]];
+        }
+
         if ($this->isGroupMessage($message)) {
+            $access_mode = $this->group_access?->modeForGroup($message->chat_id) ?? 'admins';
+            $access_command = $this->parseAccessCommand($message->text);
+            $administrative_command = $this->isIgnoreCommand($message->text) || $this->isUnignoreCommand($message->text) || $this->isDoneCommand($message->text);
+            $is_administrator = $access_mode === 'admins' || $access_command !== false || $administrative_command ? $this->isGroupAdministrator($message) : false;
+            $can_write = $access_mode === 'members' || $is_administrator;
+            if ($access_command !== false) {
+                if (!$can_write) {
+                    if ($message->message_id === null || $message->message_id <= 0) throw new RuntimeException('Telegram group message id is required for access filtering');
+                    $this->telegram->deleteMessage($message->chat_id, $message->message_id);
+                    return ['accepted' => false, 'messages' => []];
+                }
+                if ($access_command === '') return ['accepted' => true, 'messages' => [$this->sendTextReply($message, 'Доступ: ' . $access_mode, null, true)]];
+                if (!in_array($access_command, ['admins', 'members'], true)) return ['accepted' => true, 'messages' => [$this->sendTextReply($message, 'Использование: /access admins|members', null, true)]];
+                if (!$this->isGroupCreator($message)) return ['accepted' => true, 'messages' => [$this->sendTextReply($message, 'Изменить доступ может только владелец группы.', null, true)]];
+                $this->group_access?->setModeForGroup($message->chat_id, $access_command);
+                return ['accepted' => true, 'messages' => [$this->sendTextReply($message, 'Доступ: ' . $access_command, null, true)]];
+            }
             $ignore_scope = $this->ingressScopeFor($message);
             if ($this->ignore_store->isIgnored($ignore_scope)) {
-                if ($this->isUnignoreCommand($message->text) && $this->isGroupAdministrator($message)) {
+                if ($this->isUnignoreCommand($message->text) && $is_administrator) {
                     $this->ignore_store->setIgnored($ignore_scope, false);
                     RuntimeLog::info('Disabled inbound ignore scope', [
                         'chat_id' => $message->chat_id,
@@ -78,7 +100,11 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
                 ];
             }
 
-            if (!$this->isGroupAdministrator($message)) {
+            if ($administrative_command && !$is_administrator) {
+                return ['accepted' => true, 'messages' => [$this->sendTextReply($message, 'Команда доступна только администраторам группы.', null, true)]];
+            }
+
+            if (!$can_write) {
                 if ($message->message_id === null || $message->message_id <= 0) {
                     throw new RuntimeException('Telegram group message id is required for access filtering');
                 }
@@ -402,6 +428,19 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
         $member = $this->telegram->getChatMember($message->chat_id, $message->sender_user_id);
 
         return in_array((string) ($member['status'] ?? ''), ['creator', 'administrator'], true);
+    }
+
+    private function isGroupCreator(TelegramInboundMessage $message): bool
+    {
+        if ($message->sender_user_id === null) return false;
+        $member = $this->telegram->getChatMember($message->chat_id, $message->sender_user_id);
+        return (string) ($member['status'] ?? '') === 'creator';
+    }
+
+    private function parseAccessCommand(string $text): string|false
+    {
+        if (preg_match('/^\/access(?:@\S+)?(?:\s+(\S+))?\s*$/ui', trim($text), $matches) !== 1) return false;
+        return isset($matches[1]) ? strtolower((string) $matches[1]) : '';
     }
 
     private function deliverDocument(OutboundEvent $event, string $chat_id, ?int $thread_id): void
