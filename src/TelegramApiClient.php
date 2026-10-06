@@ -58,6 +58,27 @@ final class TelegramApiClient implements TelegramClientInterface, HandoverBotCli
         ]);
     }
 
+    /** @return array<string, mixed> */
+    public function getMe(): array
+    {
+        $result = $this->request('getMe');
+        $user = $result['result'] ?? null;
+        if (!is_array($user)) {
+            throw new TelegramUnavailableException('Telegram API returned invalid getMe payload');
+        }
+        return $user;
+    }
+
+    public function setWebhook(string $url, string $secret_token, string $ip_address): void
+    {
+        $this->request('setWebhook', [
+            'url' => $url,
+            'secret_token' => $secret_token,
+            'ip_address' => $ip_address,
+            'allowed_updates' => ['message', 'my_chat_member'],
+        ]);
+    }
+
     public function sendMessage(
         int|string $chat_id,
         string $text,
