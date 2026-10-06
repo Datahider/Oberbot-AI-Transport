@@ -37,6 +37,7 @@ rsync -avz --delete \
     --exclude='tests/' \
     --exclude='deploy.env' \
     --exclude='etc/config.php' \
+    --exclude='.well-known/' \
     --exclude='.idea/' \
     --exclude='.vscode/' \
     -e "ssh $SSH_OPTS" \
