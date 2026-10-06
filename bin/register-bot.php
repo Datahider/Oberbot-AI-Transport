@@ -17,8 +17,9 @@ $token = trim((string) ($argv[1] ?? ''));
 $config_path = (string) ($argv[2] ?? TelegramTransportConfig::CONFIG_PATH);
 $is_default = in_array('--default', $argv, true);
 $skip_webhook = in_array('--no-webhook', $argv, true);
+$deletion_protected = in_array('--protected', $argv, true);
 if ($token === '') {
-    throw new RuntimeException('Usage: register-bot.php TOKEN [CONFIG] [--default] [--no-webhook]');
+    throw new RuntimeException('Usage: register-bot.php TOKEN [CONFIG] [--default] [--protected] [--no-webhook]');
 }
 
 $config = TelegramTransportConfig::fromConfigPath($config_path);
@@ -39,7 +40,8 @@ $registry->register(new BotRecord(
     (string) ($identity['username'] ?? ''),
     $token,
     $webhook_secret,
-    $is_default
+    $is_default,
+    $deletion_protected
 ));
 
 if (!$skip_webhook) {

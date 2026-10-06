@@ -55,7 +55,7 @@ final class DbBotRegistry implements BotRegistryInterface
         return $this->botByKey((string) $route->bot_key);
     }
 
-    public function setActiveBotForChat(string $chat_id, string $bot_key): void
+    public function setActiveBotForChat(string $chat_id, string $bot_key, string $chat_type): void
     {
         $this->botByKey($bot_key);
         try {
@@ -65,6 +65,7 @@ final class DbBotRegistry implements BotRegistryInterface
             $route->chat_id = $chat_id;
         }
         $route->bot_key = $bot_key;
+        $route->chat_type = $chat_type;
         $route->write();
     }
 
@@ -82,7 +83,45 @@ final class DbBotRegistry implements BotRegistryInterface
         $bot->webhook_secret = $record->webhook_secret;
         $bot->is_default = $record->is_default;
         $bot->enabled = true;
+        $bot->deletion_protected = $record->deletion_protected;
         $bot->write();
+    }
+
+    public function hasTelegramUserId(int $telegram_user_id): bool
+    {
+        try { new TelegramBot(['telegram_user_id' => $telegram_user_id]); return true; }
+        catch (Throwable $e) {
+            if ($e->getCode() !== -10002) throw $e;
+            return false;
+        }
+    }
+
+    public function protectedBots(): array
+    {
+        $result = [];
+        $list = new DBList(TelegramBot::class, ['deletion_protected' => true, 'enabled' => true]);
+        while (($bot = $list->next()) instanceof TelegramBot) $result[] = $this->record($bot);
+        return $result;
+    }
+
+    public function activeGroupChatIds(string $bot_key): array
+    {
+        $result = [];
+        $list = new DBList(TelegramChatBotRoute::class, 'bot_key = ? AND chat_type IN (?, ?)', [$bot_key, 'group', 'supergroup']);
+        while (($route = $list->next()) instanceof TelegramChatBotRoute) $result[] = (string) $route->chat_id;
+        return $result;
+    }
+
+    public function deleteRoutesForBot(string $bot_key): void
+    {
+        $list = new DBList(TelegramChatBotRoute::class, ['bot_key' => $bot_key]);
+        while (($route = $list->next()) instanceof TelegramChatBotRoute) $route->delete();
+    }
+
+    public function deleteBot(string $bot_key): void
+    {
+        $bot = new TelegramBot(['bot_key' => $bot_key]);
+        $bot->delete();
     }
 
     private function record(TelegramBot $bot): BotRecord
@@ -93,7 +132,8 @@ final class DbBotRegistry implements BotRegistryInterface
             (string) $bot->username,
             $this->cipher->decrypt((string) $bot->encrypted_token),
             (string) $bot->webhook_secret,
-            (bool) $bot->is_default
+            (bool) $bot->is_default,
+            (bool) $bot->deletion_protected
         );
     }
 }

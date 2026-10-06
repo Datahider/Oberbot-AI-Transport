@@ -13,6 +13,14 @@ final class TelegramBotCommandCatalog
     {
         return [
             [
+                'command' => 'addbot',
+                'description' => 'Подключить Telegram-бота',
+            ],
+            [
+                'command' => 'delbot',
+                'description' => 'Удалить этого Telegram-бота',
+            ],
+            [
                 'command' => 'status',
                 'description' => 'Показать или переключить статус',
             ],

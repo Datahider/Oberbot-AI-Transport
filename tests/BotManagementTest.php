@@ -15,13 +15,15 @@ final class MemoryPendingBotActionStore implements PendingBotActionStoreInterfac
 {
     public array $actions = [];
     public function begin(string $bot_key, string $chat_id, int $user_id, string $action, int $expires_at): void { $this->actions["$bot_key:$chat_id:$user_id"] = [$action, $expires_at]; }
-    public function take(string $bot_key, string $chat_id, int $user_id, int $now): ?string
+    public function find(string $bot_key, string $chat_id, int $user_id, int $now): ?string
     {
         $key = "$bot_key:$chat_id:$user_id";
         $value = $this->actions[$key] ?? null;
-        unset($this->actions[$key]);
         return $value !== null && $value[1] >= $now ? $value[0] : null;
     }
+    public function tokenMessageWasDeleted(string $bot_key, string $chat_id, int $user_id, int $message_id): bool { return ($this->actions["$bot_key:$chat_id:$user_id"][2] ?? 0) === $message_id; }
+    public function markTokenMessageDeleted(string $bot_key, string $chat_id, int $user_id, int $message_id): void { $this->actions["$bot_key:$chat_id:$user_id"][2] = $message_id; }
+    public function clear(string $bot_key, string $chat_id, int $user_id): void { unset($this->actions["$bot_key:$chat_id:$user_id"]); }
 }
 
 final class ManagementRegistry implements BotRegistryInterface

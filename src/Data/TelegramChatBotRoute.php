@@ -12,6 +12,7 @@ final class TelegramChatBotRoute extends DBObject
     public const METADATA = [
         'chat_id' => 'VARCHAR(64) NOT NULL COMMENT "Telegram chat ID"',
         'bot_key' => 'VARCHAR(64) NOT NULL COMMENT "Active Telegram bot key"',
+        'chat_type' => 'VARCHAR(16) NOT NULL DEFAULT "" COMMENT "Telegram chat type"',
         'PRIMARY KEY' => 'chat_id',
         'INDEX bot_key' => 'bot_key',
     ];

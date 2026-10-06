@@ -12,7 +12,8 @@ final class BotRecord
         public readonly string $username,
         public readonly string $token,
         public readonly string $webhook_secret,
-        public readonly bool $is_default
+        public readonly bool $is_default,
+        public readonly bool $deletion_protected = false
     ) {
     }
 }

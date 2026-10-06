@@ -11,13 +11,17 @@ final class BotAwareIncomingUpdateHandler implements IncomingUpdateHandlerInterf
         private BotRegistryInterface $registry,
         private ChatLockInterface $lock,
         private BotHandoverHandler $handover,
-        private IncomingUpdateHandlerInterface $next
+        private IncomingUpdateHandlerInterface $next,
+        private ?BotManagementHandler $management = null
     ) {
     }
 
     public function handleIncomingUpdate(array $update): array
     {
         if ($this->handover->handle($this->bot, $update)) {
+            return ['accepted' => true, 'messages' => []];
+        }
+        if ($this->management?->handle($update)) {
             return ['accepted' => true, 'messages' => []];
         }
 
@@ -37,7 +41,7 @@ final class BotAwareIncomingUpdateHandler implements IncomingUpdateHandlerInterf
         if (is_array($chat) && ($chat['type'] ?? null) === 'private' && isset($chat['id'])) {
             $chat_id = (string) $chat['id'];
             $this->lock->synchronized('telegram-bot-route:' . $chat_id, function () use ($chat_id): void {
-                $this->registry->setActiveBotForChat($chat_id, $this->bot->bot_key);
+                $this->registry->setActiveBotForChat($chat_id, $this->bot->bot_key, 'private');
             });
         }
 

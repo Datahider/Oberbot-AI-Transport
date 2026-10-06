@@ -22,7 +22,13 @@ final class MemoryBotRegistry implements BotRegistryInterface
     public function defaultBot(): BotRecord { return $this->bots[(string) $this->default_key]; }
     public function activeBotForChat(string $chat_id): BotRecord { return $this->bots[$this->routes[$chat_id] ?? (string) $this->default_key]; }
     public function explicitBotForChat(string $chat_id): ?BotRecord { return isset($this->routes[$chat_id]) ? $this->bots[$this->routes[$chat_id]] : null; }
-    public function setActiveBotForChat(string $chat_id, string $bot_key): void { $this->routes[$chat_id] = $bot_key; }
+    public function setActiveBotForChat(string $chat_id, string $bot_key, string $chat_type): void { $this->routes[$chat_id] = $bot_key; }
+    public function register(BotRecord $record): void { $this->bots[$record->bot_key] = $record; }
+    public function hasTelegramUserId(int $telegram_user_id): bool { foreach ($this->bots as $bot) if ($bot->telegram_user_id === $telegram_user_id) return true; return false; }
+    public function protectedBots(): array { return array_values(array_filter($this->bots, fn(BotRecord $bot) => $bot->deletion_protected)); }
+    public function activeGroupChatIds(string $bot_key): array { return []; }
+    public function deleteRoutesForBot(string $bot_key): void { foreach ($this->routes as $chat => $key) if ($key === $bot_key) unset($this->routes[$chat]); }
+    public function deleteBot(string $bot_key): void { unset($this->bots[$bot_key]); }
 }
 
 final class ImmediateChatLock implements ChatLockInterface

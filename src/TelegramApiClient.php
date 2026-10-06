@@ -6,7 +6,7 @@ namespace CodexMultitenant\TransportTelegram;
 
 use RuntimeException;
 
-final class TelegramApiClient implements TelegramClientInterface, HandoverBotClientInterface
+final class TelegramApiClient implements TelegramClientInterface, BotManagementClientInterface
 {
     private const TELEGRAM_TEXT_LIMIT = 4096;
 
@@ -77,6 +77,11 @@ final class TelegramApiClient implements TelegramClientInterface, HandoverBotCli
             'ip_address' => $ip_address,
             'allowed_updates' => ['message', 'my_chat_member'],
         ]);
+    }
+
+    public function deleteWebhook(): void
+    {
+        $this->request('deleteWebhook');
     }
 
     public function sendMessage(

@@ -17,10 +17,12 @@ final class TelegramBot extends DBObject
         'webhook_secret' => 'VARCHAR(256) NOT NULL COMMENT "Telegram webhook secret"',
         'is_default' => 'TINYINT(1) NOT NULL DEFAULT 0 COMMENT "Default outbound bot"',
         'enabled' => 'TINYINT(1) NOT NULL DEFAULT 1 COMMENT "Bot enabled"',
+        'deletion_protected' => 'TINYINT(1) NOT NULL DEFAULT 0 COMMENT "Cannot be deleted through Telegram"',
         'PRIMARY KEY' => 'bot_key',
         'UNIQUE INDEX telegram_user_id' => 'telegram_user_id',
         'UNIQUE INDEX username' => 'username',
         'INDEX default_enabled' => ['is_default', 'enabled'],
+        'INDEX protected_enabled' => ['deletion_protected', 'enabled'],
     ];
 
     public static function tableName(): string

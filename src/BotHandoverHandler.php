@@ -35,10 +35,10 @@ final class BotHandoverHandler
             return false;
         }
 
-        $this->lock->synchronized('telegram-bot-handover:' . $chat_id, function () use ($chat_id, $new_bot): void {
+        $this->lock->synchronized('telegram-bot-handover:' . $chat_id, function () use ($chat_id, $chat_type, $new_bot): void {
             $old_bot = $this->registry->explicitBotForChat($chat_id) ?? $this->registry->defaultBot();
             if ($old_bot->bot_key === $new_bot->bot_key) {
-                $this->registry->setActiveBotForChat($chat_id, $new_bot->bot_key);
+                $this->registry->setActiveBotForChat($chat_id, $new_bot->bot_key, $chat_type);
                 return;
             }
 
@@ -46,7 +46,7 @@ final class BotHandoverHandler
             $new_client = $this->clients->create($new_bot);
             $old_client->sendMessage($chat_id, 'О, коллега! Привет. Пост сдал.');
             $new_client->sendMessage($chat_id, 'Пост принял.');
-            $this->registry->setActiveBotForChat($chat_id, $new_bot->bot_key);
+            $this->registry->setActiveBotForChat($chat_id, $new_bot->bot_key, $chat_type);
             $old_client->leaveChat($chat_id);
         });
 

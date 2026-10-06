@@ -137,7 +137,16 @@ final class RuntimeFactory
                 $registry,
                 $lock,
                 new BotHandoverHandler($registry, $lock, $clients),
-                $transport
+                $transport,
+                new BotManagementHandler(
+                    $bot,
+                    $registry,
+                    new DbPendingBotActionStore(),
+                    $clients,
+                    $config->telegram_webhook_base_url,
+                    $config->telegram_webhook_ip_address,
+                    static fn(): int => time()
+                )
             )
         );
     }
