@@ -116,6 +116,19 @@ function testNextHandoverSeesPreviousNewBotAsOld(): void
     assertSame(['-100'], $factory->clients['b']->left_chats, 'middle bot became old and left');
 }
 
+function testHandoverTreatsDefaultBotAsOldWithoutExplicitRoute(): void
+{
+    $old = bot('old', 1); $new = bot('new', 2);
+    $registry = new MemoryBotRegistry(['old' => $old, 'new' => $new], 'old');
+    $factory = new MemoryBotClientFactory();
+    $handler = new BotHandoverHandler($registry, new ImmediateChatLock(), $factory);
+
+    $handler->handle($new, joinedUpdate('-200'));
+
+    assertSame('new', $registry->routes['-200'], 'new bot replaces implicit default');
+    assertSame(['-200'], $factory->clients['old']->left_chats, 'implicit default bot left');
+}
+
 function testPrivateMessageActivatesReceivingBotBeforeForwarding(): void
 {
     $a = bot('a', 1); $b = bot('b', 2);
@@ -141,4 +154,5 @@ function testPrivateMessageActivatesReceivingBotBeforeForwarding(): void
 testBotTokenCipherRoundTrip();
 testHandoverReplacesActiveBotUnderOneChatLock();
 testNextHandoverSeesPreviousNewBotAsOld();
+testHandoverTreatsDefaultBotAsOldWithoutExplicitRoute();
 testPrivateMessageActivatesReceivingBotBeforeForwarding();

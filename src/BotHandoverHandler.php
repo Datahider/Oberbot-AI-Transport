@@ -36,8 +36,8 @@ final class BotHandoverHandler
         }
 
         $this->lock->synchronized('telegram-bot-handover:' . $chat_id, function () use ($chat_id, $new_bot): void {
-            $old_bot = $this->registry->explicitBotForChat($chat_id);
-            if ($old_bot === null || $old_bot->bot_key === $new_bot->bot_key) {
+            $old_bot = $this->registry->explicitBotForChat($chat_id) ?? $this->registry->defaultBot();
+            if ($old_bot->bot_key === $new_bot->bot_key) {
                 $this->registry->setActiveBotForChat($chat_id, $new_bot->bot_key);
                 return;
             }
