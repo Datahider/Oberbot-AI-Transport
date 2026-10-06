@@ -33,6 +33,7 @@ final class ManagementRegistry implements BotRegistryInterface
     public array $route_types;
     public function __construct(array $bots, array $routes = [], array $route_types = []) { $this->bots = $bots; $this->routes = $routes; $this->route_types = $route_types; }
     public function botByKey(string $bot_key): BotRecord { return $this->bots[$bot_key]; }
+    public function botByTelegramUserId(int $telegram_user_id): ?BotRecord { foreach ($this->bots as $bot) if ($bot->telegram_user_id === $telegram_user_id) return $bot; return null; }
     public function defaultBot(): BotRecord { return reset($this->bots); }
     public function activeBotForChat(string $chat_id): BotRecord { return $this->bots[$this->routes[$chat_id] ?? array_key_first($this->bots)]; }
     public function explicitBotForChat(string $chat_id): ?BotRecord { return isset($this->routes[$chat_id]) ? $this->bots[$this->routes[$chat_id]] : null; }
@@ -90,6 +91,34 @@ function testProtectedBotCannotBeDeleted(): void
     assertSame(false, $client->webhook_deleted, 'protected webhook retained');
 }
 
+function testAddBotUpdatesExistingTokenWithoutChangingIdentityOrProtection(): void
+{
+    $current = managedBot('current', 1, true); $existing = managedBot('stable-key', 2, true);
+    $registry = new ManagementRegistry(['current' => $current, 'stable-key' => $existing], ['-100' => 'stable-key'], ['-100' => 'supergroup']);
+    $store = new MemoryPendingBotActionStore(); $factory = new ManagementFactory();
+    $current_client = new ManagementClient(); $updated_client = new ManagementClient(['id' => 2, 'username' => 'renamed_bot']);
+    $factory->by_bot['current'] = $current_client; $factory->by_token['2:new-secret'] = $updated_client;
+    $handler = new BotManagementHandler($current, $registry, $store, $factory, 'https://webhook.example', '1.2.3.4', fn() => 1000);
+    $handler->handle(privateUpdate('/addbot')); $handler->handle(privateUpdate('2:new-secret', 14));
+    $updated = $registry->bots['stable-key'];
+    assertSame('2:new-secret', $updated->token, 'token updated');
+    assertSame('renamed_bot', $updated->username, 'username updated');
+    assertSame(true, $updated->deletion_protected, 'protection retained');
+    assertSame('stable-key', $registry->routes['-100'], 'route retained');
+    assertTrue($updated_client->webhook_set, 'existing webhook reconfigured');
+}
+
+function testUpdateTokenCommandShowsProtectedRecoveryBots(): void
+{
+    $current = managedBot('current', 1); $official = managedBot('official', 2, true);
+    $registry = new ManagementRegistry(['current' => $current, 'official' => $official]); $store = new MemoryPendingBotActionStore(); $factory = new ManagementFactory();
+    $client = new ManagementClient(); $factory->by_bot['current'] = $client;
+    $handler = new BotManagementHandler($current, $registry, $store, $factory, 'https://webhook.example', '1.2.3.4', fn() => 1000);
+    assertTrue($handler->handle(privateUpdate('/updatetoken')), 'instruction command handled');
+    assertTrue(str_contains($client->messages[0][1] ?? '', '/addbot'), 'addbot instruction shown');
+    assertTrue(str_contains($client->messages[0][1] ?? '', '@official'), 'protected recovery bot shown');
+}
+
 function testDeleteBotFarewellsGroupsAdvertisesProtectedBotsAndKeepsCoreState(): void
 {
     $current = managedBot('current', 1); $official = managedBot('official', 2, true);
@@ -106,4 +135,6 @@ function testDeleteBotFarewellsGroupsAdvertisesProtectedBotsAndKeepsCoreState():
 
 testAddBotConsumesTokenAndRegistersWebhook();
 testProtectedBotCannotBeDeleted();
+testAddBotUpdatesExistingTokenWithoutChangingIdentityOrProtection();
+testUpdateTokenCommandShowsProtectedRecoveryBots();
 testDeleteBotFarewellsGroupsAdvertisesProtectedBotsAndKeepsCoreState();
