@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace CodexMultitenant\TransportTelegram;
 
 use CodexMultitenant\TransportTelegram\Data\OpaqueStatusState;
+use losthost\DB\DBList;
 use Throwable;
 
-final class DbStatusStateStore implements StatusStateStoreInterface
+final class DbStatusStateStore implements StatusStateStoreInterface, StatusMessageResetInterface
 {
     public function load(string $opaque): StatusState
     {
@@ -44,5 +45,15 @@ final class DbStatusStateStore implements StatusStateStoreInterface
             ? null
             : ($state->voice_quote_enabled ? 1 : 0);
         $row->write();
+    }
+
+    public function resetForChat(string $chat_id): void
+    {
+        $list = new DBList(OpaqueStatusState::class, 'opaque = ? OR opaque LIKE ?', [$chat_id, $chat_id . ':%']);
+        while (($row = $list->next()) instanceof OpaqueStatusState) {
+            $row->message_id = null;
+            $row->last_text = null;
+            $row->write();
+        }
     }
 }

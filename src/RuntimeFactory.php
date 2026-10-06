@@ -129,6 +129,7 @@ final class RuntimeFactory
         );
         $lock = new DbChatLock();
         $clients = new TelegramBotClientFactory($config->telegram_base_url, $config->telegram_endpoint_prefix);
+        $status_reset = new DbStatusStateStore();
 
         return new WebhookEndpoint(
             $bot->webhook_secret,
@@ -136,7 +137,7 @@ final class RuntimeFactory
                 $bot,
                 $registry,
                 $lock,
-                new BotHandoverHandler($registry, $lock, $clients),
+                new BotHandoverHandler($registry, $lock, $clients, $status_reset),
                 $transport,
                 new BotManagementHandler(
                     $bot,
@@ -146,7 +147,8 @@ final class RuntimeFactory
                     $config->telegram_webhook_base_url,
                     $config->telegram_webhook_ip_address,
                     static fn(): int => time()
-                )
+                ),
+                $status_reset
             )
         );
     }

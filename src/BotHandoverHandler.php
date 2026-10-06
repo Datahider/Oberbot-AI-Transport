@@ -9,7 +9,8 @@ final class BotHandoverHandler
     public function __construct(
         private BotRegistryInterface $registry,
         private ChatLockInterface $lock,
-        private BotClientFactoryInterface $clients
+        private BotClientFactoryInterface $clients,
+        private ?StatusMessageResetInterface $status_reset = null
     ) {
     }
 
@@ -47,6 +48,7 @@ final class BotHandoverHandler
             $old_client->sendMessage($chat_id, 'О, коллега! Привет. Пост сдал.');
             $new_client->sendMessage($chat_id, 'Пост принял.');
             $this->registry->setActiveBotForChat($chat_id, $new_bot->bot_key, $chat_type);
+            $this->status_reset?->resetForChat($chat_id);
             $old_client->leaveChat($chat_id);
         });
 
