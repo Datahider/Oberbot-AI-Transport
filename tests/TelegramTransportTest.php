@@ -24,7 +24,7 @@ use CodexMultitenant\TransportTelegram\TenantMapInterface;
 use CodexMultitenant\TransportTelegram\CursorStoreInterface;
 use CodexMultitenant\TransportTelegram\Router\RouterUnavailableException;
 
-function testConfigRequiresTelegramToken(): void
+function testConfigAllowsBotTokenOutsideRuntimeConfig(): void
 {
     $config_path = createTestConfig([
         'router' => [
@@ -57,10 +57,8 @@ function testConfigRequiresTelegramToken(): void
     ]);
 
     try {
-        TelegramTransportConfig::fromConfigPath($config_path);
-        fail('Expected missing telegram token to fail');
-    } catch (RuntimeException $e) {
-        assertSame('Missing required config value: telegram.bot_token', $e->getMessage(), 'missing telegram token');
+        $config = TelegramTransportConfig::fromConfigPath($config_path);
+        assertSame('', $config->telegram_bot_token, 'bot token outside runtime config');
     } finally {
         removeTestConfig($config_path);
     }
@@ -2418,7 +2416,7 @@ final class FakeFileExchangeClient implements \CodexMultitenant\TransportTelegra
     }
 }
 
-testConfigRequiresTelegramToken();
+testConfigAllowsBotTokenOutsideRuntimeConfig();
 testConfigRequiresFileExchangeToken();
 testNormalizerBuildsOpaqueWithThread();
 testNormalizerBuildsInboundDocumentAttachment();
