@@ -350,6 +350,13 @@
 - При `transport.telegram_polling_enabled=false` supervisor не запускает и не перезапускает inbound worker; outbound worker продолжает работать без изменений.
 - Для webhook-режима production config обязан устанавливать `transport.telegram_polling_enabled=false` до вызова Telegram `setWebhook`.
 
+## Production Runtime Placement
+
+- Production-код webhook endpoint и outbound worker размещается в одном каталоге `/home/codexgate-webhook/htdocs/webhook.codexgate.ru`.
+- Оба процесса работают от системного пользователя `codexgate-webhook` и читают один файл `etc/config.php`.
+- Systemd-сервис `codex-multitenant-telegram` запускает из этого каталога только supervisor/outbound worker; Telegram ingress обслуживается PHP-FPM через webhook endpoint.
+- Прежний каталог пользователя `pio-bots` после переключения не является runtime source, но не удаляется до отдельного решения владельца.
+
 ## Binding Migration Contract
 
 - До переключения ingress все строки прежней локальной таблицы
