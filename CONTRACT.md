@@ -43,9 +43,10 @@
   - `telegram.endpoint_prefix`
   - `file_exchange.base_url`
   - `file_exchange.token`
-  - `transport.transport_instance_id`
-  - `transport.outbound_poll_interval_ms`
-  - `transport.telegram_poll_timeout_seconds`
+- `transport.transport_instance_id`
+- `transport.outbound_poll_interval_ms`
+- `transport.telegram_poll_timeout_seconds`
+- `transport.telegram_polling_enabled`
   - `transport.unknown_chat_text`
   - `transport.status_instruction_text`
   - `transport.idle_status_text`
@@ -341,11 +342,13 @@
 
 ## Process Loop
 - Один процесс transport instance:
-  - делает Telegram long polling
+  - запускает Telegram long polling только при `transport.telegram_polling_enabled=true`
   - отправляет ingress в `Router`
   - делает long polling `Router` outbound
   - отправляет outbound в нужные Telegram chats/topics
 - Один transport process обслуживает все чаты данного `transport_instance_id`.
+- При `transport.telegram_polling_enabled=false` supervisor не запускает и не перезапускает inbound worker; outbound worker продолжает работать без изменений.
+- Для webhook-режима production config обязан устанавливать `transport.telegram_polling_enabled=false` до вызова Telegram `setWebhook`.
 
 ## Binding Migration Contract
 
@@ -397,6 +400,7 @@ return [
         'transport_instance_id' => 'telegram-main',
         'outbound_poll_interval_ms' => 250,
         'telegram_poll_timeout_seconds' => 20,
+        'telegram_polling_enabled' => true,
         'unknown_chat_text' => 'Этот чат не привязан к tenant.',
         'status_instruction_text' => 'Закрепите следующее сообщение для отображения текущего статуса.',
         'idle_status_text' => 'Свободен',

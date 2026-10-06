@@ -61,6 +61,11 @@ final class MainRunner
             ],
         ];
 
+        if (!$this->config->telegram_polling_enabled) {
+            unset($workers['inbound']);
+            RuntimeLog::info('Telegram polling worker disabled by config');
+        }
+
         foreach ($workers as $name => &$worker) {
             $worker['pid'] = $this->launchWorker(
                 $name,

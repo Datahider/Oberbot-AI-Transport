@@ -74,6 +74,47 @@ function testMainRunnerWorkerBootstrapUsesLogFileObserver(): void
     assertTrue(str_contains($rendered, '/tmp/runtime-config.php'), 'rendered bootstrap uses runtime config path');
 }
 
+function testMainRunnerStartsOnlyOutboundWhenTelegramPollingIsDisabled(): void
+{
+    $started = [];
+    $base = buildConfig();
+    $config = new \CodexMultitenant\TransportTelegram\TelegramTransportConfig(
+        router_base_url: $base->router_base_url,
+        router_token: $base->router_token,
+        telegram_bot_token: $base->telegram_bot_token,
+        telegram_base_url: $base->telegram_base_url,
+        telegram_endpoint_prefix: $base->telegram_endpoint_prefix,
+        file_exchange_base_url: $base->file_exchange_base_url,
+        file_exchange_token: $base->file_exchange_token,
+        transport_instance_id: $base->transport_instance_id,
+        outbound_poll_interval_ms: $base->outbound_poll_interval_ms,
+        telegram_poll_timeout_seconds: $base->telegram_poll_timeout_seconds,
+        unknown_chat_text: $base->unknown_chat_text,
+        status_instruction_text: $base->status_instruction_text,
+        idle_status_text: $base->idle_status_text,
+        telegram_polling_enabled: false
+    );
+
+    $runner = new MainRunner(
+        $config,
+        __DIR__,
+        __FILE__,
+        __FILE__,
+        static function (string $name) use (&$started): int {
+            $started[] = $name;
+            return 3001;
+        },
+        static fn (int $pid): bool => true,
+        static function (int $milliseconds): void {
+        },
+        1
+    );
+
+    $runner->run();
+
+    assertSame(['outbound'], $started, 'only outbound worker started');
+}
+
 function testMainRunnerRestartsExitedWorkerAndLogsIt(): void
 {
     $launches = [];
@@ -133,6 +174,7 @@ function testMainRunnerRestartsExitedWorkerAndLogsIt(): void
 
 testMainRunnerStartsInboundAndOutboundWorkers();
 testMainRunnerWorkerBootstrapUsesLogFileObserver();
+testMainRunnerStartsOnlyOutboundWhenTelegramPollingIsDisabled();
 testMainRunnerRestartsExitedWorkerAndLogsIt();
 
 fwrite(STDOUT, "MainRunner tests: OK\n");

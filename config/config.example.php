@@ -17,6 +17,7 @@ return [
         'transport_instance_id' => 'telegram-main',
         'outbound_poll_interval_ms' => 250,
         'telegram_poll_timeout_seconds' => 20,
+        'telegram_polling_enabled' => true,
         'unknown_chat_text' => 'Этот чат не привязан к tenant.',
         'status_instruction_text' => 'Закрепите следующее сообщение для отображения текущего статуса.',
         'idle_status_text' => 'Свободен',

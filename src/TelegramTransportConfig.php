@@ -30,7 +30,8 @@ final class TelegramTransportConfig
         public readonly string $db_pass = '',
         public readonly string $db_name = '',
         public readonly string $db_prefix = '',
-        public readonly string $telegram_webhook_secret_token = ''
+        public readonly string $telegram_webhook_secret_token = '',
+        public readonly bool $telegram_polling_enabled = true
     ) {
     }
 
@@ -61,6 +62,11 @@ final class TelegramTransportConfig
         $status_instruction_text = trim((string) ($transport['status_instruction_text'] ?? ''));
         $idle_status_text = trim((string) ($transport['idle_status_text'] ?? ''));
         $done_forum_topic_icon_custom_emoji_id = trim((string) ($transport['done_forum_topic_icon_custom_emoji_id'] ?? ''));
+        $telegram_polling_enabled = $transport['telegram_polling_enabled'] ?? true;
+
+        if (!is_bool($telegram_polling_enabled)) {
+            throw new RuntimeException('Config value transport.telegram_polling_enabled must be boolean');
+        }
 
         if ($router_base_url === '') {
             throw new RuntimeException('Missing required config value: router.base_url');
@@ -144,7 +150,8 @@ final class TelegramTransportConfig
             db_pass: $db_pass,
             db_name: $db_name,
             db_prefix: $db_prefix,
-            telegram_webhook_secret_token: $telegram_webhook_secret_token
+            telegram_webhook_secret_token: $telegram_webhook_secret_token,
+            telegram_polling_enabled: $telegram_polling_enabled
         );
     }
 
