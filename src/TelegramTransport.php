@@ -7,7 +7,7 @@ namespace CodexMultitenant\TransportTelegram;
 use RuntimeException;
 use Throwable;
 
-final class TelegramTransport implements IncomingUpdateHandlerInterface
+final class TelegramTransport implements IncomingUpdateHandlerInterface, OutboundDeliveryInterface
 {
     private const TELEGRAM_TEXT_LIMIT = 4096;
     private const MAX_INBOUND_ATTACHMENT_SIZE_BYTES = 20 * 1024 * 1024;

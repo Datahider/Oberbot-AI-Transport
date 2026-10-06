@@ -8,6 +8,8 @@ use CodexMultitenant\TransportTelegram\Data\ChatTenantBinding;
 use CodexMultitenant\TransportTelegram\Data\IngressIgnoreScopeState;
 use CodexMultitenant\TransportTelegram\Data\OpaqueStatusState;
 use CodexMultitenant\TransportTelegram\Data\ProcessCursorState;
+use CodexMultitenant\TransportTelegram\Data\TelegramBot;
+use CodexMultitenant\TransportTelegram\Data\TelegramChatBotRoute;
 use losthost\DB\DB;
 
 final class DatabaseBootstrap
@@ -29,5 +31,7 @@ final class DatabaseBootstrap
         IngressIgnoreScopeState::initDataStructure();
         OpaqueStatusState::initDataStructure();
         ProcessCursorState::initDataStructure();
+        TelegramBot::initDataStructure();
+        TelegramChatBotRoute::initDataStructure();
     }
 }

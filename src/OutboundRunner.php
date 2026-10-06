@@ -15,7 +15,7 @@ final class OutboundRunner
 
     public function __construct(
         private RouterClientInterface $router,
-        private TelegramTransport $transport,
+        private OutboundDeliveryInterface $transport,
         private CursorStoreInterface $cursor_store,
         ?callable $sleep_fn = null
     ) {

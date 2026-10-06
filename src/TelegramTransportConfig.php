@@ -31,7 +31,10 @@ final class TelegramTransportConfig
         public readonly string $db_name = '',
         public readonly string $db_prefix = '',
         public readonly string $telegram_webhook_secret_token = '',
-        public readonly bool $telegram_polling_enabled = true
+        public readonly bool $telegram_polling_enabled = true,
+        public readonly string $telegram_bot_token_encryption_key = '',
+        public readonly string $telegram_webhook_base_url = 'https://webhook.codexgate.ru:8443',
+        public readonly string $telegram_webhook_ip_address = '88.99.59.157'
     ) {
     }
 
@@ -55,6 +58,9 @@ final class TelegramTransportConfig
         $telegram_base_url = rtrim(trim((string) ($telegram['base_url'] ?? '')), '/');
         $telegram_endpoint_prefix = trim((string) ($telegram['endpoint_prefix'] ?? 'bot'), '/');
         $telegram_webhook_secret_token = trim((string) ($telegram['webhook_secret_token'] ?? ''));
+        $telegram_bot_token_encryption_key = trim((string) ($telegram['bot_token_encryption_key'] ?? ''));
+        $telegram_webhook_base_url = rtrim(trim((string) ($telegram['webhook_base_url'] ?? 'https://webhook.codexgate.ru:8443')), '/');
+        $telegram_webhook_ip_address = trim((string) ($telegram['webhook_ip_address'] ?? '88.99.59.157'));
         $file_exchange_base_url = rtrim(trim((string) ($file_exchange['base_url'] ?? '')), '/');
         $file_exchange_token = trim((string) ($file_exchange['token'] ?? ''));
         $transport_instance_id = trim((string) ($transport['transport_instance_id'] ?? ''));
@@ -151,7 +157,10 @@ final class TelegramTransportConfig
             db_name: $db_name,
             db_prefix: $db_prefix,
             telegram_webhook_secret_token: $telegram_webhook_secret_token,
-            telegram_polling_enabled: $telegram_polling_enabled
+            telegram_polling_enabled: $telegram_polling_enabled,
+            telegram_bot_token_encryption_key: $telegram_bot_token_encryption_key,
+            telegram_webhook_base_url: $telegram_webhook_base_url,
+            telegram_webhook_ip_address: $telegram_webhook_ip_address
         );
     }
 

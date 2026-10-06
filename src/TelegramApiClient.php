@@ -6,7 +6,7 @@ namespace CodexMultitenant\TransportTelegram;
 
 use RuntimeException;
 
-final class TelegramApiClient implements TelegramClientInterface
+final class TelegramApiClient implements TelegramClientInterface, HandoverBotClientInterface
 {
     private const TELEGRAM_TEXT_LIMIT = 4096;
 
@@ -277,6 +277,11 @@ final class TelegramApiClient implements TelegramClientInterface
             'chat_id' => $chat_id,
             'message_id' => $message_id,
         ]);
+    }
+
+    public function leaveChat(int|string $chat_id): void
+    {
+        $this->request('leaveChat', ['chat_id' => $chat_id]);
     }
 
     public function getChatMember(int|string $chat_id, int $user_id): array

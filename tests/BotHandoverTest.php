@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 use CodexMultitenant\TransportTelegram\BotClientFactoryInterface;
 use CodexMultitenant\TransportTelegram\BotHandoverHandler;
+use CodexMultitenant\TransportTelegram\BotAwareIncomingUpdateHandler;
 use CodexMultitenant\TransportTelegram\BotRecord;
 use CodexMultitenant\TransportTelegram\BotRegistryInterface;
 use CodexMultitenant\TransportTelegram\BotTokenCipher;
 use CodexMultitenant\TransportTelegram\ChatLockInterface;
 use CodexMultitenant\TransportTelegram\HandoverBotClientInterface;
+use CodexMultitenant\TransportTelegram\IncomingUpdateHandlerInterface;
 
 require_once __DIR__ . '/bootstrap.php';
 
@@ -52,6 +54,16 @@ final class MemoryBotClientFactory implements BotClientFactoryInterface
     public function create(BotRecord $bot): HandoverBotClientInterface
     {
         return $this->clients[$bot->bot_key] ??= new HandoverClient();
+    }
+}
+
+final class RecordingIncomingHandler implements IncomingUpdateHandlerInterface
+{
+    public array $updates = [];
+    public function handleIncomingUpdate(array $update): array
+    {
+        $this->updates[] = $update;
+        return ['accepted' => true, 'messages' => []];
     }
 }
 
@@ -104,6 +116,29 @@ function testNextHandoverSeesPreviousNewBotAsOld(): void
     assertSame(['-100'], $factory->clients['b']->left_chats, 'middle bot became old and left');
 }
 
+function testPrivateMessageActivatesReceivingBotBeforeForwarding(): void
+{
+    $a = bot('a', 1); $b = bot('b', 2);
+    $registry = new MemoryBotRegistry(['a' => $a, 'b' => $b], 'a');
+    $lock = new ImmediateChatLock();
+    $next = new RecordingIncomingHandler();
+    $handler = new BotAwareIncomingUpdateHandler(
+        $b,
+        $registry,
+        $lock,
+        new BotHandoverHandler($registry, $lock, new MemoryBotClientFactory()),
+        $next
+    );
+    $update = ['message' => ['chat' => ['id' => 55, 'type' => 'private'], 'text' => 'hello']];
+
+    $handler->handleIncomingUpdate($update);
+
+    assertSame('b', $registry->routes['55'], 'receiving private bot active');
+    assertSame(['telegram-bot-route:55'], $lock->keys, 'private route lock');
+    assertSame([$update], $next->updates, 'private update forwarded');
+}
+
 testBotTokenCipherRoundTrip();
 testHandoverReplacesActiveBotUnderOneChatLock();
 testNextHandoverSeesPreviousNewBotAsOld();
+testPrivateMessageActivatesReceivingBotBeforeForwarding();
