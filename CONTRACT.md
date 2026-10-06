@@ -375,7 +375,7 @@
 - `/delbot`: `getMe` переданного token обязан вернуть Telegram user ID текущего бота. Это единственная проверка права на удаление.
 - Каждый bot record имеет `deletion_protected`. Защищённый бот не удаляется через Telegram даже при верном token. Признак меняется только административно.
 - Перед удалением бот во всех чатах типа `group`/`supergroup`, где он является активным, отправляет: `Всем спасибо, я пошел. Продолжить вы можете с другими ботами:` и до 5 случайных `@username` ботов с `deletion_protected=true`.
-- После прощания бот выходит из этих гупп. Все его group/private routes удаляются, webhook удаляется, затем удаляются token и bot record. Router bindings и Core sessions не изменяются.
+- После прощания бот выходит из этих групп. Все его group/private routes удаляются, webhook удаляется, затем удаляются token и bot record. Router bindings и Core sessions не изменяются.
 - Если один из шагов Telegram API завершился ошибкой, удаление прекращается и ошибка webhook возвращается Telegram для повтора update.
 
 ## Process Loop
