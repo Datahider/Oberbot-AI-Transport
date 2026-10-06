@@ -365,6 +365,19 @@
 - Выбор активного бота выполняется непосредственно перед Telegram API delivery, а не при чтении outbound event из Router.
 - Управляющие команды, включая будущее подключение новых bot token, могут обрабатываться в личном чате без изменения Router или Core session identity.
 
+## Bot Registration and Removal Commands
+
+- `/addbot` и `/delbot` обрабатываются Transport только в личном чате и не передаются в Router.
+- После команды Transport запоминает ожидаемое действие на 5 минут и запрашивает bot token. Ключ ожидания: `bot_key + private chat_id + Telegram user_id`.
+- Просроченное ожидание удаляется; полученное сообщение после истечения срока обрабатывается как обычное ingress-сообщение.
+- Сообщение с bot token удаляется из Telegram до вызова `getMe`, не логируется и никогда не передаётся в Router.
+- `/addbot`: token проверяется через `getMe`; Transport создаёт новые `bot_key` и webhook secret, сохраняет зашифрованный token, устанавливает команды и webhook, затем подтверждает регистрацию. Повторная регистрация Telegram user ID запрещена.
+- `/delbot`: `getMe` переданного token обязан вернуть Telegram user ID текущего бота. Это единственная проверка права на удаление.
+- Каждый bot record имеет `deletion_protected`. Защищённый бот не удаляется через Telegram даже при верном token. Признак меняется только административно.
+- Перед удалением бот во всех чатах типа `group`/`supergroup`, где он является активным, отправляет: `Всем спасибо, я пошел. Продолжить вы можете с другими ботами:` и до 5 случайных `@username` ботов с `deletion_protected=true`.
+- После прощания бот выходит из этих гупп. Все его group/private routes удаляются, webhook удаляется, затем удаляются token и bot record. Router bindings и Core sessions не изменяются.
+- Если один из шагов Telegram API завершился ошибкой, удаление прекращается и ошибка webhook возвращается Telegram для повтора update.
+
 ## Process Loop
 - Один процесс transport instance:
   - запускает Telegram long polling только при `transport.telegram_polling_enabled=true`
