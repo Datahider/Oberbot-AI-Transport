@@ -21,6 +21,10 @@ final class TelegramBotCommandCatalog
                 'description' => 'Удалить этого Telegram-бота',
             ],
             [
+                'command' => 'updatetoken',
+                'description' => 'Обновить token Telegram-бота',
+            ],
+            [
                 'command' => 'status',
                 'description' => 'Показать или переключить статус',
             ],

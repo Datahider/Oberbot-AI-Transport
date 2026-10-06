@@ -27,6 +27,17 @@ final class DbBotRegistry implements BotRegistryInterface
         return $this->record($bot);
     }
 
+    public function botByTelegramUserId(int $telegram_user_id): ?BotRecord
+    {
+        try { $bot = new TelegramBot(['telegram_user_id' => $telegram_user_id]); }
+        catch (Throwable $e) {
+            if ($e->getCode() !== -10002) throw $e;
+            return null;
+        }
+        if (!(bool) $bot->enabled) throw new RuntimeException('Telegram bot is disabled');
+        return $this->record($bot);
+    }
+
     public function defaultBot(): BotRecord
     {
         $list = new DBList(TelegramBot::class, ['is_default' => true, 'enabled' => true]);

@@ -7,6 +7,7 @@ namespace CodexMultitenant\TransportTelegram;
 interface BotRegistryInterface
 {
     public function botByKey(string $bot_key): BotRecord;
+    public function botByTelegramUserId(int $telegram_user_id): ?BotRecord;
     public function defaultBot(): BotRecord;
     public function activeBotForChat(string $chat_id): BotRecord;
     public function explicitBotForChat(string $chat_id): ?BotRecord;

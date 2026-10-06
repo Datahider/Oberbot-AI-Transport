@@ -34,6 +34,16 @@ final class BotManagementHandler
         $client = $this->clients->create($this->current_bot);
         $now = ($this->clock)();
 
+        if ($text === '/updatetoken') {
+            $official = $this->registry->protectedBots();
+            shuffle($official);
+            $names = array_map(fn(BotRecord $bot): string => '@' . $bot->username, array_slice($official, 0, 5));
+            $instruction = "Перевыпустите token в BotFather. Затем откройте одного из официальных ботов, выполните /addbot и отправьте ему новый token. Группы и привязки сохранятся.";
+            if ($names !== []) $instruction .= "\n\n" . implode("\n", $names);
+            $client->sendMessage($chat_id, $instruction);
+            return true;
+        }
+
         if (in_array($text, ['/addbot', '/delbot'], true)) {
             $action = $text === '/addbot' ? 'add' : 'delete';
             $this->pending->begin($this->current_bot->bot_key, $chat_id, $user_id, $action, $now + self::PENDING_SECONDS);
@@ -55,17 +65,26 @@ final class BotManagementHandler
         $username = (string) ($identity['username'] ?? '');
 
         if ($action === 'add') {
-            if ($telegram_user_id <= 0 || $username === '' || $this->registry->hasTelegramUserId($telegram_user_id)) {
+            if ($telegram_user_id <= 0 || $username === '') {
                 $client->sendMessage($chat_id, 'Этот бот не может быть зарегистрирован.');
                 $this->pending->clear($this->current_bot->bot_key, $chat_id, $user_id);
                 return true;
             }
-            $bot_key = bin2hex(random_bytes(16));
-            $webhook_secret = bin2hex(random_bytes(32));
-            $this->registry->register(new BotRecord($bot_key, $telegram_user_id, $username, $text, $webhook_secret, false, false));
+            $existing = $this->registry->botByTelegramUserId($telegram_user_id);
+            $bot_key = $existing?->bot_key ?? bin2hex(random_bytes(16));
+            $webhook_secret = $existing?->webhook_secret ?? bin2hex(random_bytes(32));
+            $this->registry->register(new BotRecord(
+                $bot_key,
+                $telegram_user_id,
+                $username,
+                $text,
+                $webhook_secret,
+                $existing?->is_default ?? false,
+                $existing?->deletion_protected ?? false
+            ));
             $token_client->setMyCommands(TelegramBotCommandCatalog::all());
             $token_client->setWebhook(rtrim($this->webhook_base_url, '/') . '/' . $bot_key, $webhook_secret, $this->webhook_ip_address);
-            $client->sendMessage($chat_id, 'Бот @' . $username . ' подключён.');
+            $client->sendMessage($chat_id, $existing === null ? 'Бот @' . $username . ' подключён.' : 'Token бота @' . $username . ' обновлён.');
             $this->pending->clear($this->current_bot->bot_key, $chat_id, $user_id);
             return true;
         }
