@@ -11,6 +11,7 @@ use CodexMultitenant\TransportTelegram\BotTokenCipher;
 use CodexMultitenant\TransportTelegram\ChatLockInterface;
 use CodexMultitenant\TransportTelegram\HandoverBotClientInterface;
 use CodexMultitenant\TransportTelegram\IncomingUpdateHandlerInterface;
+use CodexMultitenant\TransportTelegram\StatusMessageResetInterface;
 
 require_once __DIR__ . '/bootstrap.php';
 
@@ -73,6 +74,12 @@ final class RecordingIncomingHandler implements IncomingUpdateHandlerInterface
     }
 }
 
+final class RecordingStatusReset implements StatusMessageResetInterface
+{
+    public array $chat_ids = [];
+    public function resetForChat(string $chat_id): void { $this->chat_ids[] = $chat_id; }
+}
+
 function bot(string $key, int $telegram_id): BotRecord
 {
     return new BotRecord($key, $telegram_id, $key, $key . '-token', $key . '-secret', false);
@@ -98,7 +105,8 @@ function testHandoverReplacesActiveBotUnderOneChatLock(): void
     $registry = new MemoryBotRegistry(['old' => $old, 'new' => $new], 'old', ['-100' => 'old']);
     $lock = new ImmediateChatLock();
     $factory = new MemoryBotClientFactory();
-    $handler = new BotHandoverHandler($registry, $lock, $factory);
+    $status_reset = new RecordingStatusReset();
+    $handler = new BotHandoverHandler($registry, $lock, $factory, $status_reset);
 
     assertTrue($handler->handle($new, joinedUpdate('-100')), 'handover update handled');
     assertSame(['telegram-bot-handover:-100'], $lock->keys, 'one chat lock');
@@ -106,6 +114,7 @@ function testHandoverReplacesActiveBotUnderOneChatLock(): void
     assertSame([['-100', 'О, коллега! Привет. Пост сдал.']], $factory->clients['old']->messages, 'old bot farewell');
     assertSame([['-100', 'Пост принял.']], $factory->clients['new']->messages, 'new bot greeting');
     assertSame(['-100'], $factory->clients['old']->left_chats, 'old bot left');
+    assertSame(['-100'], $status_reset->chat_ids, 'group status reset');
 }
 
 function testNextHandoverSeesPreviousNewBotAsOld(): void
@@ -141,12 +150,15 @@ function testPrivateMessageActivatesReceivingBotBeforeForwarding(): void
     $registry = new MemoryBotRegistry(['a' => $a, 'b' => $b], 'a');
     $lock = new ImmediateChatLock();
     $next = new RecordingIncomingHandler();
+    $status_reset = new RecordingStatusReset();
     $handler = new BotAwareIncomingUpdateHandler(
         $b,
         $registry,
         $lock,
-        new BotHandoverHandler($registry, $lock, new MemoryBotClientFactory()),
-        $next
+        new BotHandoverHandler($registry, $lock, new MemoryBotClientFactory(), $status_reset),
+        $next,
+        null,
+        $status_reset
     );
     $update = ['message' => ['chat' => ['id' => 55, 'type' => 'private'], 'text' => 'hello']];
 
@@ -155,6 +167,7 @@ function testPrivateMessageActivatesReceivingBotBeforeForwarding(): void
     assertSame('b', $registry->routes['55'], 'receiving private bot active');
     assertSame(['telegram-bot-route:55'], $lock->keys, 'private route lock');
     assertSame([$update], $next->updates, 'private update forwarded');
+    assertSame(['55'], $status_reset->chat_ids, 'private status reset');
 }
 
 function testInactiveBotGroupMessageIsNotForwarded(): void
