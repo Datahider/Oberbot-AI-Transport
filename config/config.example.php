@@ -8,10 +8,8 @@ return [
         'transport_token' => 'router-transport-token',
     ],
     'telegram' => [
-        'bot_token' => 'telegram-bot-token',
         'base_url' => 'https://api.telegram.org',
         'endpoint_prefix' => 'bot',
-        'webhook_secret_token' => 'telegram-webhook-secret-token',
         'bot_token_encryption_key' => 'base64-encoded-32-byte-key',
         'webhook_base_url' => 'https://webhook.codexgate.ru:8443',
         'webhook_ip_address' => '88.99.59.157',

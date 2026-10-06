@@ -82,10 +82,6 @@ final class TelegramTransportConfig
             throw new RuntimeException('Missing required config value: router.transport_token');
         }
 
-        if ($telegram_bot_token === '') {
-            throw new RuntimeException('Missing required config value: telegram.bot_token');
-        }
-
         if ($telegram_base_url === '') {
             throw new RuntimeException('Missing required config value: telegram.base_url');
         }

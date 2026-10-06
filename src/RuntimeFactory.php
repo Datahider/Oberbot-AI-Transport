@@ -26,6 +26,9 @@ final class RuntimeFactory
     public static function createIngressRunner(string $config_path): IngressRunner
     {
         $config = TelegramTransportConfig::fromConfigPath($config_path);
+        if ($config->telegram_bot_token === '') {
+            throw new \RuntimeException('telegram.bot_token is required for legacy polling');
+        }
         DatabaseBootstrap::connect($config);
         DatabaseBootstrap::initDataStructure();
 
