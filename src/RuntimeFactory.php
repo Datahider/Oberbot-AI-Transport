@@ -72,18 +72,14 @@ final class RuntimeFactory
             new CurlHttpClient()
         );
 
-        $telegram = new TelegramApiClient(
-            $config->telegram_bot_token,
-            $config->telegram_base_url,
-            $config->telegram_endpoint_prefix
-        );
+        $registry = self::createBotRegistry($config);
 
         return new OutboundRunner(
             $router,
-            new TelegramTransport(
+            new BotAwareOutboundDelivery(
                 $config,
                 $router,
-                $telegram,
+                $registry,
                 new DbTenantMap(),
                 new DbStatusStateStore(),
                 new DbIgnoreStateStore(),
@@ -96,7 +92,7 @@ final class RuntimeFactory
         );
     }
 
-    public static function createWebhookEndpoint(string $config_path): WebhookEndpoint
+    public static function createWebhookEndpoint(string $config_path, string $bot_key): WebhookEndpoint
     {
         $config = TelegramTransportConfig::fromConfigPath($config_path);
         DatabaseBootstrap::connect($config);
@@ -108,26 +104,46 @@ final class RuntimeFactory
             new CurlHttpClient()
         );
 
+        $registry = self::createBotRegistry($config);
+        $bot = $registry->botByKey($bot_key);
         $telegram = new TelegramApiClient(
-            $config->telegram_bot_token,
+            $bot->token,
             $config->telegram_base_url,
             $config->telegram_endpoint_prefix
         );
 
-        return new WebhookEndpoint(
-            $config->telegram_webhook_secret_token,
-            new TelegramTransport(
-                $config,
-                $router,
-                $telegram,
-                new DbTenantMap(),
-                new DbStatusStateStore(),
-                new DbIgnoreStateStore(),
-                new FileExchangeApiClient(
-                    $config->file_exchange_base_url,
-                    $config->file_exchange_token
-                )
+        $transport = new TelegramTransport(
+            $config,
+            $router,
+            $telegram,
+            new DbTenantMap(),
+            new DbStatusStateStore(),
+            new DbIgnoreStateStore(),
+            new FileExchangeApiClient(
+                $config->file_exchange_base_url,
+                $config->file_exchange_token
             )
         );
+        $lock = new DbChatLock();
+        $clients = new TelegramBotClientFactory($config->telegram_base_url, $config->telegram_endpoint_prefix);
+
+        return new WebhookEndpoint(
+            $bot->webhook_secret,
+            new BotAwareIncomingUpdateHandler(
+                $bot,
+                $registry,
+                $lock,
+                new BotHandoverHandler($registry, $lock, $clients),
+                $transport
+            )
+        );
+    }
+
+    private static function createBotRegistry(TelegramTransportConfig $config): DbBotRegistry
+    {
+        if ($config->telegram_bot_token_encryption_key === '') {
+            throw new \RuntimeException('telegram.bot_token_encryption_key is required');
+        }
+        return new DbBotRegistry(new BotTokenCipher($config->telegram_bot_token_encryption_key));
     }
 }

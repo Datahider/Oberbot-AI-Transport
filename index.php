@@ -18,7 +18,13 @@ if ($body === false) {
     exit;
 }
 
-$response = RuntimeFactory::createWebhookEndpoint($config_path)->handle(
+$bot_key = trim((string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH), '/');
+if (!preg_match('/^[a-f0-9]{32}$/', $bot_key)) {
+    http_response_code(404);
+    exit;
+}
+
+$response = RuntimeFactory::createWebhookEndpoint($config_path, $bot_key)->handle(
     (string) ($_SERVER['REQUEST_METHOD'] ?? ''),
     is_array($headers) ? $headers : [],
     $body
