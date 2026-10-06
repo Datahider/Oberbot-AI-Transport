@@ -340,6 +340,27 @@
 - Endpoint не хранит Telegram `update_id` и не изменяет polling cursor.
 - До отдельного решения владельца polling-процесс и его данные остаются без изменений.
 
+## Multi-bot Registry and Handover
+
+- Bot token не является runtime config value. Bot tokens хранятся в локальной БД Transport в зашифрованном виде.
+- Runtime config содержит только один master key шифрования `telegram.bot_token_encryption_key`; ключ обязан декодироваться в 32 байта и не хранится в БД.
+- Каждый зарегистрированный бот имеет стабильный случайный `bot_key`, Telegram user ID, username, отдельный webhook secret и признак default bot.
+- Webhook URL имеет вид `https://webhook.codexgate.ru:8443/{bot_key}`. Endpoint сначала загружает bot record по точному `bot_key`, затем проверяет secret этого бота и создаёт Telegram API client с его token.
+- Один Telegram `chat_id` имеет не более одного активного бота. Локальная route table хранит `chat_id -> bot_key`.
+- Если route для `chat_id` отсутствует, outbound использует явно назначенного default bot. Наличие более одного default bot запрещено схемой и регистрационной процедурой.
+- `bot_key` не добавляется в `opaque`, Router payload или Core session identity.
+- Добавление зарегистрированного нового бота в группу определяется по Telegram update `my_chat_member` со статусом `member` или `administrator`.
+- Передача группы сериализуется одним `DB::getLock('telegram-bot-handover:' . chat_id)`; bot records отдельными lock не защищаются.
+- Внутри lock Transport повторно читает текущий route. Если активен другой бот:
+  1. старый бот отправляет `О, коллега! Привет. Пост сдал.`;
+  2. новый бот отправляет `Пост принял.`;
+  3. route атомарно заменяется на нового бота;
+  4. старый бот вызывает `leaveChat`.
+- Если route отсутствует или уже указывает на нового бота, Transport только фиксирует нового бота активным без handover-сообщений и `leaveChat`.
+- Lock всегда освобождается в `finally`. Невозможность получить lock является явной временной ошибкой webhook.
+- Outbound извлекает `chat_id` из существующего `opaque`, выбирает route/default bot локально и отправляет событие его токеном. Контракт Router не меняется.
+- Личные чаты не используют `leaveChat`; переключение активного бота в личке будет определено отдельным onboarding-контрактом.
+
 ## Process Loop
 - Один процесс transport instance:
   - запускает Telegram long polling только при `transport.telegram_polling_enabled=true`
