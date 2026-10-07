@@ -6,7 +6,7 @@ namespace CodexMultitenant\TransportTelegram;
 
 final class TelegramBotCommandCatalog
 {
-    private const PRIVATE_ONLY = ['addbot', 'delbot', 'updatetoken'];
+    private const PRIVATE_ONLY = ['addbot', 'delbot', 'updatetoken', 'pair'];
     private const GROUP_ONLY = ['access', 'ignore', 'unignore', 'done'];
 
     /**
@@ -26,6 +26,10 @@ final class TelegramBotCommandCatalog
             [
                 'command' => 'updatetoken',
                 'description' => 'Обновить token Telegram-бота',
+            ],
+            [
+                'command' => 'pair',
+                'description' => 'Привязать Core',
             ],
             [
                 'command' => 'access',

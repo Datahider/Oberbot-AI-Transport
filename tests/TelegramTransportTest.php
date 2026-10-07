@@ -1618,6 +1618,46 @@ function testDoneCommandReportsTelegramPermissionFailureWithoutCrash(): void
     assertSame([], $telegram->closed_topics, 'done permission failure no topic close');
 }
 
+function testPairCommandDeletesSecretAndClaimsPrivateChat(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(buildConfig(), $router, $telegram, new InMemoryTenantMap([]), new InMemoryStatusStateStore(), new InMemoryIgnoreStateStore());
+
+    $result = $transport->handleIncomingUpdate(['message' => [
+        'message_id' => 2201,
+        'text' => '/pair 7kqw-9mtr-x5np-3yza',
+        'from' => ['id' => 42, 'first_name' => 'Ivan'],
+        'chat' => ['id' => 42, 'type' => 'private'],
+    ]]);
+
+    assertSame([['chat_id' => '42', 'message_id' => 2201]], $telegram->deleted_messages, 'pair secret deleted');
+    assertSame([[
+        'binding' => '42',
+        'pairing_code' => '7kqw-9mtr-x5np-3yza',
+        'label' => 'Telegram private chat',
+    ]], $router->claim_payloads, 'private chat claimed');
+    assertSame('Core привязан.', $result['messages'][0]['text'] ?? null, 'pair success reply');
+    assertSame([], $router->ingress_payloads, 'pair command not forwarded');
+}
+
+function testPairCommandRejectsGroupWithoutCallingRouter(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(buildConfig(), $router, $telegram, new InMemoryTenantMap([]), new InMemoryStatusStateStore(), new InMemoryIgnoreStateStore());
+
+    $result = $transport->handleIncomingUpdate(['message' => [
+        'message_id' => 2202,
+        'text' => '/pair 7KQW-9MTR-X5NP-3YZA',
+        'from' => ['id' => 42],
+        'chat' => ['id' => -100123, 'type' => 'supergroup'],
+    ]]);
+
+    assertSame([], $router->claim_payloads, 'group pair does not call router');
+    assertSame('Команда /pair работает только в личном чате.', $result['messages'][0]['text'] ?? null, 'group pair reply');
+}
+
 function testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery(): void
 {
     $telegram = new FakeTelegramClient();
@@ -1887,6 +1927,7 @@ final class FakeRouterClient implements RouterClientInterface
 {
     /** @var list<array<string, mixed>> */
     public array $ingress_payloads = [];
+    public array $claim_payloads = [];
 
     /**
      * @param array<string, mixed> $payload
@@ -1902,6 +1943,12 @@ final class FakeRouterClient implements RouterClientInterface
     public function getOutboundEvents(int $after_id, int $wait, int $limit): array
     {
         return [];
+    }
+
+    public function claimCoreBinding(string $binding, string $pairing_code, string $label): array
+    {
+        $this->claim_payloads[] = compact('binding', 'pairing_code', 'label');
+        return ['accepted' => true];
     }
 }
 
@@ -1927,6 +1974,8 @@ final class SequencedOutboundRouterClient implements RouterClientInterface
 
         return array_shift($this->batches);
     }
+
+    public function claimCoreBinding(string $binding, string $pairing_code, string $label): array { throw new RuntimeException('not used'); }
 }
 
 final class RetryableOutboundRouterClient implements RouterClientInterface
@@ -1956,6 +2005,8 @@ final class RetryableOutboundRouterClient implements RouterClientInterface
 
         return $response;
     }
+
+    public function claimCoreBinding(string $binding, string $pairing_code, string $label): array { throw new RuntimeException('not used'); }
 
 }
 
@@ -2422,6 +2473,8 @@ final class RetryingIngressRouterClient implements RouterClientInterface
     {
         throw new RuntimeException('not used');
     }
+
+    public function claimCoreBinding(string $binding, string $pairing_code, string $label): array { throw new RuntimeException('not used'); }
 }
 
 final class RateLimitedTelegramClient extends FakeTelegramClient
@@ -2534,6 +2587,8 @@ testNoteCommandStaysLocalAndSilent();
 testDoneCommandRejectsNonThreadChat();
 testDoneCommandEditsIconAndClosesForumTopic();
 testDoneCommandReportsTelegramPermissionFailureWithoutCrash();
+testPairCommandDeletesSecretAndClaimsPrivateChat();
+testPairCommandRejectsGroupWithoutCallingRouter();
 testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery();
 testLongFinalFallsBackToDocumentWithCaption();
 testOutboundRunnerReportsPermanentDeliveryFailureAndAdvancesCursor();

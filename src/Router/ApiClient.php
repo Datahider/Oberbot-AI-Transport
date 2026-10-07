@@ -31,6 +31,16 @@ final class ApiClient implements RouterClientInterface
         return $this->postJson('/api/v2/transport/ingress', $payload);
     }
 
+    public function claimCoreBinding(string $binding, string $pairing_code, string $label): array
+    {
+        return $this->postJson('/api/v2/transport/control', [
+            'operation' => 'binding.claim_core',
+            'binding' => $binding,
+            'pairing_code' => $pairing_code,
+            'label' => $label,
+        ]);
+    }
+
     public function getOutboundEvents(int $after_id, int $wait, int $limit): array
     {
         $response = $this->getJson('/api/v1/transport/outbound', [

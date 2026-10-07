@@ -51,6 +51,27 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
             ];
         }
 
+        $pair_code = $this->parsePairCommand($message->text);
+        if ($pair_code !== false) {
+            if ($this->isGroupMessage($message)) {
+                return ['accepted' => true, 'messages' => [$this->sendTextReply($message, 'Команда /pair работает только в личном чате.', null, true)]];
+            }
+            if ($pair_code === '') {
+                return ['accepted' => true, 'messages' => [$this->sendTextReply($message, 'Использование: /pair XXXX-XXXX-XXXX-XXXX', null, true)]];
+            }
+            if ($message->message_id === null || $message->message_id <= 0) {
+                throw new RuntimeException('Telegram private message id is required for pairing');
+            }
+            $this->telegram->deleteMessage($message->chat_id, $message->message_id);
+            $claim = $this->router->claimCoreBinding($message->chat_id, $pair_code, 'Telegram private chat');
+            $reply = match ($claim['reason'] ?? null) {
+                null => ($claim['accepted'] ?? false) === true ? 'Core привязан.' : 'Код неверен, просрочен или уже использован.',
+                'binding_conflict' => 'Этот чат уже привязан к другому Core.',
+                default => 'Код неверен, просрочен или уже использован.',
+            };
+            return ['accepted' => true, 'messages' => [$this->sendTextReply($message, $reply, null, true)]];
+        }
+
         if (!$this->isGroupMessage($message) && $this->parseAccessCommand($message->text) !== false) {
             return ['accepted' => true, 'messages' => [$this->sendTextReply($message, 'Команда /access работает только в группах.', null, true)]];
         }
@@ -441,6 +462,15 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
     {
         if (preg_match('/^\/access(?:@\S+)?(?:\s+(\S+))?\s*$/ui', trim($text), $matches) !== 1) return false;
         return isset($matches[1]) ? strtolower((string) $matches[1]) : '';
+    }
+
+    private function parsePairCommand(string $text): string|false
+    {
+        if (preg_match('/^\/pair(?:@\S+)?(?:\s+(\S+))?\s*$/ui', trim($text), $matches) !== 1) {
+            return false;
+        }
+
+        return trim((string) ($matches[1] ?? ''));
     }
 
     private function deliverDocument(OutboundEvent $event, string $chat_id, ?int $thread_id): void
