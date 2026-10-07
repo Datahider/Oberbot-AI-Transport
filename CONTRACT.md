@@ -172,7 +172,7 @@
 - Ошибка upload считается operational failure и должна приводить к исключению без fallback.
 
 ## Local Commands
-- `/install` в private chat выпускает через Router одноразовый pairing ticket на 3 часа для установки нового Core; в группах команда отклоняется локально.
+- `/install` и обычный `/start` без payload в private chat выпускают через Router одноразовый pairing ticket на 3 часа для установки нового Core; в группах команды отклоняются локально.
 - `/pair <code>` обрабатывается только в private chat и первично привязывает этот chat к Core.
 - Telegram deep link имеет формат `https://t.me/<bot_username>?start=pair_<code>`; полученная в private chat команда `/start pair_<code>` эквивалентна `/pair <code>`.
 - Любой другой `/start` payload не считается transport-local pairing command.
