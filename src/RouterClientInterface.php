@@ -15,6 +15,9 @@ interface RouterClientInterface
     /** @return array<string, mixed> */
     public function claimCoreBinding(string $binding, string $pairing_code, string $label): array;
 
+    /** @return array<string, mixed> */
+    public function createInstallPairingCode(string $binding, string $label): array;
+
     /**
      * @return list<array<string, mixed>>
      */

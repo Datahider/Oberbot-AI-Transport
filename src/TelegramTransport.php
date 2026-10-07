@@ -51,6 +51,13 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
             ];
         }
 
+        if (preg_match('/^\/install(?:@\S+)?\s*$/ui', trim($message->text)) === 1) {
+            if ($this->isGroupMessage($message)) return ['accepted' => true, 'messages' => [$this->sendTextReply($message, 'Команда /install работает только в личном чате.', null, true)]];
+            $ticket = $this->router->createInstallPairingCode($message->chat_id, 'Telegram private chat');
+            $text = 'Код установки: ' . (string) $ticket['pairing_code'] . "\nДействует 3 часа. Инсталлер примет его через --pair.";
+            return ['accepted' => true, 'messages' => [$this->sendTextReply($message, $text, null, true)]];
+        }
+
         $pair_code = $this->parsePairCommand($message->text);
         if ($pair_code !== false) {
             if ($this->isGroupMessage($message)) {

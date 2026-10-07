@@ -1713,6 +1713,17 @@ function testUnrelatedStartPayloadIsForwarded(): void
     assertSame([], $router->claim_payloads, 'unrelated start does not claim');
 }
 
+function testInstallCommandCreatesThreeHourPairingCode(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(buildConfig(), $router, $telegram, new InMemoryTenantMap([]), new InMemoryStatusStateStore(), new InMemoryIgnoreStateStore());
+    $result = $transport->handleIncomingUpdate(['message' => ['message_id' => 2206, 'text' => '/install', 'from' => ['id' => 42], 'chat' => ['id' => 42, 'type' => 'private']]]);
+    assertSame([['binding' => '42', 'label' => 'Telegram private chat']], $router->install_pairing_payloads, 'install pairing request');
+    assertTrue(str_contains($result['messages'][0]['text'] ?? '', '7KQW-9MTR-X5NP-3YZA'), 'install code shown');
+    assertSame([], $router->ingress_payloads, 'install command not forwarded');
+}
+
 function testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery(): void
 {
     $telegram = new FakeTelegramClient();
@@ -1983,6 +1994,7 @@ final class FakeRouterClient implements RouterClientInterface
     /** @var list<array<string, mixed>> */
     public array $ingress_payloads = [];
     public array $claim_payloads = [];
+    public array $install_pairing_payloads = [];
 
     /**
      * @param array<string, mixed> $payload
@@ -2004,6 +2016,11 @@ final class FakeRouterClient implements RouterClientInterface
     {
         $this->claim_payloads[] = compact('binding', 'pairing_code', 'label');
         return ['accepted' => true];
+    }
+    public function createInstallPairingCode(string $binding, string $label): array
+    {
+        $this->install_pairing_payloads[] = compact('binding', 'label');
+        return ['accepted' => true, 'pairing_code' => '7KQW-9MTR-X5NP-3YZA', 'expires_at' => '2030-01-01T03:00:00+00:00'];
     }
 }
 
@@ -2031,6 +2048,7 @@ final class SequencedOutboundRouterClient implements RouterClientInterface
     }
 
     public function claimCoreBinding(string $binding, string $pairing_code, string $label): array { throw new RuntimeException('not used'); }
+    public function createInstallPairingCode(string $binding, string $label): array { throw new RuntimeException('not used'); }
 }
 
 final class RetryableOutboundRouterClient implements RouterClientInterface
@@ -2062,6 +2080,7 @@ final class RetryableOutboundRouterClient implements RouterClientInterface
     }
 
     public function claimCoreBinding(string $binding, string $pairing_code, string $label): array { throw new RuntimeException('not used'); }
+    public function createInstallPairingCode(string $binding, string $label): array { throw new RuntimeException('not used'); }
 
 }
 
@@ -2534,6 +2553,7 @@ final class RetryingIngressRouterClient implements RouterClientInterface
     }
 
     public function claimCoreBinding(string $binding, string $pairing_code, string $label): array { throw new RuntimeException('not used'); }
+    public function createInstallPairingCode(string $binding, string $label): array { throw new RuntimeException('not used'); }
 }
 
 final class RateLimitedTelegramClient extends FakeTelegramClient
@@ -2651,6 +2671,7 @@ testPairCommandRejectsGroupWithoutCallingRouter();
 testPairCommandContinuesWhenRetriedMessageWasAlreadyDeleted();
 testPairDeepLinkPayloadClaimsPrivateChat();
 testUnrelatedStartPayloadIsForwarded();
+testInstallCommandCreatesThreeHourPairingCode();
 testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery();
 testLongFinalFallsBackToDocumentWithCaption();
 testOutboundRunnerReportsPermanentDeliveryFailureAndAdvancesCursor();

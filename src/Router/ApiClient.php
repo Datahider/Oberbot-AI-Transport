@@ -41,6 +41,11 @@ final class ApiClient implements RouterClientInterface
         ]);
     }
 
+    public function createInstallPairingCode(string $binding, string $label): array
+    {
+        return $this->postJson('/api/v2/transport/control', ['operation' => 'pairing.create_install', 'binding' => $binding, 'label' => $label]);
+    }
+
     public function getOutboundEvents(int $after_id, int $wait, int $limit): array
     {
         $response = $this->getJson('/api/v1/transport/outbound', [
