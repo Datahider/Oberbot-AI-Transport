@@ -55,7 +55,7 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
             if ($this->isGroupMessage($message)) return ['accepted' => true, 'messages' => [$this->sendTextReply($message, 'Команда /install работает только в личном чате.', null, true)]];
             $ticket = $this->router->createInstallPairingCode($message->chat_id, 'Telegram private chat');
             $text = "Установите Core на VPS этой командой:\n\n"
-                . 'curl -fsSL https://codexgate.ru/install-core.sh | sudo sh -s -- --pair ' . (string) $ticket['pairing_code']
+                . 'curl -fsSL https://codexgate.ru/install-core.php.gz | gunzip | sudo php -- --pair ' . (string) $ticket['pairing_code']
                 . "\n\nКод действует 3 часа.";
             return ['accepted' => true, 'messages' => [$this->sendTextReply($message, $text, null, true)]];
         }
