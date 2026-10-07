@@ -173,7 +173,7 @@
 
 ## Local Commands
 - `/install` и обычный `/start` без payload в private chat выпускают через Router одноразовый pairing ticket на 3 часа для установки нового Core; в группах команды отклоняются локально.
-- Ответ `/install` и обычного `/start` содержит готовую shell-команду `curl -fsSL https://codexgate.ru/install-core.php.gz | gunzip | sudo php -- --pair <code>` и срок действия кода.
+- Ответ `/install` и обычного `/start` содержит готовую shell-команду `curl -fsSL https://codexgate.ru/install-core.php.gz | gunzip | sudo php -- --pair <code>` и срок действия кода; команда отправляется как HTML `<pre><code>` блок для копирования одним нажатием.
 - `/pair <code>` обрабатывается только в private chat и первично привязывает этот chat к Core.
 - Telegram deep link имеет формат `https://t.me/<bot_username>?start=pair_<code>`; полученная в private chat команда `/start pair_<code>` эквивалентна `/pair <code>`.
 - Любой другой `/start` payload не считается transport-local pairing command.
