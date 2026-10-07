@@ -62,7 +62,13 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
             if ($message->message_id === null || $message->message_id <= 0) {
                 throw new RuntimeException('Telegram private message id is required for pairing');
             }
-            $this->telegram->deleteMessage($message->chat_id, $message->message_id);
+            try {
+                $this->telegram->deleteMessage($message->chat_id, $message->message_id);
+            } catch (RuntimeException $exception) {
+                if (!str_contains($exception->getMessage(), 'message to delete not found')) {
+                    throw $exception;
+                }
+            }
             $claim = $this->router->claimCoreBinding($message->chat_id, $pair_code, 'Telegram private chat');
             $reply = match ($claim['reason'] ?? null) {
                 null => ($claim['accepted'] ?? false) === true ? 'Core привязан.' : 'Код неверен, просрочен или уже использован.',

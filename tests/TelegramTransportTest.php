@@ -1659,6 +1659,24 @@ function testPairCommandRejectsGroupWithoutCallingRouter(): void
     assertSame('Команда /pair работает только в личном чате.', $result['messages'][0]['text'] ?? null, 'group pair reply');
 }
 
+function testPairCommandContinuesWhenRetriedMessageWasAlreadyDeleted(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $telegram->delete_message_exception = new RuntimeException('Telegram API request failed: Bad Request: message to delete not found');
+    $transport = new TelegramTransport(buildConfig(), $router, $telegram, new InMemoryTenantMap([]), new InMemoryStatusStateStore(), new InMemoryIgnoreStateStore());
+
+    $result = $transport->handleIncomingUpdate(['message' => [
+        'message_id' => 2203,
+        'text' => '/pair PR123',
+        'from' => ['id' => 42],
+        'chat' => ['id' => 42, 'type' => 'private'],
+    ]]);
+
+    assertSame(1, count($router->claim_payloads), 'retried pair reaches router');
+    assertSame('Core привязан.', $result['messages'][0]['text'] ?? null, 'retried pair receives reply');
+}
+
 function testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery(): void
 {
     $telegram = new FakeTelegramClient();
@@ -2039,6 +2057,7 @@ class FakeTelegramClient implements TelegramClientInterface
 
     /** @var list<array<string, mixed>> */
     public array $deleted_messages = [];
+    public ?RuntimeException $delete_message_exception = null;
 
     /** @var array<string, array<string, mixed>> */
     public array $chat_member_results = [];
@@ -2215,6 +2234,9 @@ class FakeTelegramClient implements TelegramClientInterface
 
     public function deleteMessage(int|string $chat_id, int $message_id): void
     {
+        if ($this->delete_message_exception !== null) {
+            throw $this->delete_message_exception;
+        }
         $this->deleted_messages[] = [
             'chat_id' => $chat_id,
             'message_id' => $message_id,
@@ -2590,6 +2612,7 @@ testDoneCommandEditsIconAndClosesForumTopic();
 testDoneCommandReportsTelegramPermissionFailureWithoutCrash();
 testPairCommandDeletesSecretAndClaimsPrivateChat();
 testPairCommandRejectsGroupWithoutCallingRouter();
+testPairCommandContinuesWhenRetriedMessageWasAlreadyDeleted();
 testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery();
 testLongFinalFallsBackToDocumentWithCaption();
 testOutboundRunnerReportsPermanentDeliveryFailureAndAdvancesCursor();
