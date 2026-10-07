@@ -1720,7 +1720,8 @@ function testInstallCommandCreatesThreeHourPairingCode(): void
     $transport = new TelegramTransport(buildConfig(), $router, $telegram, new InMemoryTenantMap([]), new InMemoryStatusStateStore(), new InMemoryIgnoreStateStore());
     $result = $transport->handleIncomingUpdate(['message' => ['message_id' => 2206, 'text' => '/install', 'from' => ['id' => 42], 'chat' => ['id' => 42, 'type' => 'private']]]);
     assertSame([['binding' => '42', 'label' => 'Telegram private chat']], $router->install_pairing_payloads, 'install pairing request');
-    assertSame("Установите Core на VPS этой командой:\n\ncurl -fsSL https://codexgate.ru/install-core.php.gz | gunzip | sudo php -- --pair 7KQW-9MTR-X5NP-3YZA\n\nКод действует 3 часа.", $result['messages'][0]['text'] ?? '', 'install command shown');
+    assertSame("Установите Core на VPS этой командой:\n\n<pre><code>curl -fsSL https://codexgate.ru/install-core.php.gz | gunzip | sudo php -- --pair 7KQW-9MTR-X5NP-3YZA</code></pre>\n\nКод действует 3 часа.", $result['messages'][0]['text'] ?? '', 'install command shown');
+    assertSame('HTML', $telegram->sent_messages[0]['parse_mode'] ?? null, 'install command parse mode');
     assertSame([], $router->ingress_payloads, 'install command not forwarded');
 }
 
@@ -1732,6 +1733,7 @@ function testPlainStartCreatesInstallPairingCode(): void
     $result = $transport->handleIncomingUpdate(['message' => ['message_id' => 2207, 'text' => '/start', 'from' => ['id' => 42], 'chat' => ['id' => 42, 'type' => 'private']]]);
     assertSame(1, count($router->install_pairing_payloads), 'plain start creates install pairing');
     assertTrue(str_contains($result['messages'][0]['text'] ?? '', 'curl -fsSL https://codexgate.ru/install-core.php.gz | gunzip | sudo php -- --pair 7KQW-9MTR-X5NP-3YZA'), 'plain start shows install command');
+    assertSame('HTML', $telegram->sent_messages[0]['parse_mode'] ?? null, 'plain start install command parse mode');
     assertSame([], $router->ingress_payloads, 'plain start not forwarded');
 }
 
