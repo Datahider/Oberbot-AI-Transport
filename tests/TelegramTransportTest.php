@@ -1677,6 +1677,42 @@ function testPairCommandContinuesWhenRetriedMessageWasAlreadyDeleted(): void
     assertSame('Core привязан.', $result['messages'][0]['text'] ?? null, 'retried pair receives reply');
 }
 
+function testPairDeepLinkPayloadClaimsPrivateChat(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(buildConfig(), $router, $telegram, new InMemoryTenantMap([]), new InMemoryStatusStateStore(), new InMemoryIgnoreStateStore());
+
+    $result = $transport->handleIncomingUpdate(['message' => [
+        'message_id' => 2204,
+        'text' => '/start pair_7KQW-9MTR-X5NP-3YZA',
+        'from' => ['id' => 42],
+        'chat' => ['id' => 42, 'type' => 'private'],
+    ]]);
+
+    assertSame([['chat_id' => '42', 'message_id' => 2204]], $telegram->deleted_messages, 'deep link payload deleted');
+    assertSame('7KQW-9MTR-X5NP-3YZA', $router->claim_payloads[0]['pairing_code'] ?? null, 'deep link code claimed');
+    assertSame('Core привязан.', $result['messages'][0]['text'] ?? null, 'deep link success reply');
+    assertSame([], $router->ingress_payloads, 'pair deep link not forwarded');
+}
+
+function testUnrelatedStartPayloadIsForwarded(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(buildConfig(), $router, $telegram, new InMemoryTenantMap([]), new InMemoryStatusStateStore(), new InMemoryIgnoreStateStore());
+
+    $transport->handleIncomingUpdate(['message' => [
+        'message_id' => 2205,
+        'text' => '/start something_else',
+        'from' => ['id' => 42],
+        'chat' => ['id' => 42, 'type' => 'private'],
+    ]]);
+
+    assertSame('/start something_else', $router->ingress_payloads[0]['text'] ?? null, 'unrelated start forwarded');
+    assertSame([], $router->claim_payloads, 'unrelated start does not claim');
+}
+
 function testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery(): void
 {
     $telegram = new FakeTelegramClient();
@@ -2613,6 +2649,8 @@ testDoneCommandReportsTelegramPermissionFailureWithoutCrash();
 testPairCommandDeletesSecretAndClaimsPrivateChat();
 testPairCommandRejectsGroupWithoutCallingRouter();
 testPairCommandContinuesWhenRetriedMessageWasAlreadyDeleted();
+testPairDeepLinkPayloadClaimsPrivateChat();
+testUnrelatedStartPayloadIsForwarded();
 testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery();
 testLongFinalFallsBackToDocumentWithCaption();
 testOutboundRunnerReportsPermanentDeliveryFailureAndAdvancesCursor();

@@ -481,11 +481,15 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
 
     private function parsePairCommand(string $text): string|false
     {
-        if (preg_match('/^\/pair(?:@\S+)?(?:\s+(\S+))?\s*$/ui', trim($text), $matches) !== 1) {
-            return false;
+        $text = trim($text);
+        if (preg_match('/^\/pair(?:@\S+)?(?:\s+(\S+))?\s*$/ui', $text, $matches) === 1) {
+            return trim((string) ($matches[1] ?? ''));
+        }
+        if (preg_match('/^\/start(?:@\S+)?\s+pair_(\S+)\s*$/ui', $text, $matches) === 1) {
+            return trim((string) $matches[1]);
         }
 
-        return trim((string) ($matches[1] ?? ''));
+        return false;
     }
 
     private function deliverDocument(OutboundEvent $event, string $chat_id, ?int $thread_id): void
