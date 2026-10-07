@@ -69,7 +69,16 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
                 'binding_conflict' => 'Этот чат уже привязан к другому Core.',
                 default => 'Код неверен, просрочен или уже использован.',
             };
-            return ['accepted' => true, 'messages' => [$this->sendTextReply($message, $reply, null, true)]];
+            $result = $this->telegram->sendMessage(
+                $message->chat_id,
+                $reply,
+                null,
+                null,
+                true,
+                $message->thread_id
+            );
+            $result['text'] = $reply;
+            return ['accepted' => true, 'messages' => [$result]];
         }
 
         if (!$this->isGroupMessage($message) && $this->parseAccessCommand($message->text) !== false) {

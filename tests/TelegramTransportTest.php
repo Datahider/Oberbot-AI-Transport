@@ -1638,6 +1638,7 @@ function testPairCommandDeletesSecretAndClaimsPrivateChat(): void
         'label' => 'Telegram private chat',
     ]], $router->claim_payloads, 'private chat claimed');
     assertSame('Core привязан.', $result['messages'][0]['text'] ?? null, 'pair success reply');
+    assertSame(null, $telegram->sent_messages[0]['reply_to_message_id'] ?? null, 'pair reply does not target deleted message');
     assertSame([], $router->ingress_payloads, 'pair command not forwarded');
 }
 
