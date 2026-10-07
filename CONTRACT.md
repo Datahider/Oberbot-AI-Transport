@@ -173,6 +173,8 @@
 
 ## Local Commands
 - `/pair <code>` обрабатывается только в private chat и первично привязывает этот chat к Core.
+- Telegram deep link имеет формат `https://t.me/<bot_username>?start=pair_<code>`; полученная в private chat команда `/start pair_<code>` эквивалентна `/pair <code>`.
+- Любой другой `/start` payload не считается transport-local pairing command.
 - Transport удаляет Telegram message с кодом до вызова Router и не записывает код в лог.
 - Повтор webhook после уже успешного удаления message должен считать Telegram-ошибку `message to delete not found` успешным идемпотентным удалением; остальные ошибки удаления не подавляются.
 - Transport передаёт `binding` как строковый Telegram `chat_id`, `label` — имя Telegram-пользователя или `Telegram private chat`.
