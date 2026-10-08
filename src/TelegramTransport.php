@@ -57,8 +57,10 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
             $command = 'curl -fsSL https://codexgate.ru/install-core.php.gz | gunzip | sudo php -- --pair ' . (string) $ticket['pairing_code'];
             $text = "Установите Core на VPS этой командой:\n\n"
                 . '<pre><code>' . htmlspecialchars($command, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</code></pre>'
-                . "\n\nНовый код в любой момент можно получить командой /start или /install.";
-            return ['accepted' => true, 'messages' => [$this->sendTextReply($message, $text, 'HTML', true)]];
+                . "\n\nНовый код в любой момент можно получить командой /start.";
+            $result = $this->telegram->sendMessage($message->chat_id, $text, null, 'HTML', true, $message->thread_id);
+            $result['text'] = $text;
+            return ['accepted' => true, 'messages' => [$result]];
         }
 
         $pair_code = $this->parsePairCommand($message->text);

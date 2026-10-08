@@ -1720,8 +1720,9 @@ function testInstallCommandCreatesThreeHourPairingCode(): void
     $transport = new TelegramTransport(buildConfig(), $router, $telegram, new InMemoryTenantMap([]), new InMemoryStatusStateStore(), new InMemoryIgnoreStateStore());
     $result = $transport->handleIncomingUpdate(['message' => ['message_id' => 2206, 'text' => '/install', 'from' => ['id' => 42], 'chat' => ['id' => 42, 'type' => 'private']]]);
     assertSame([['binding' => '42', 'label' => 'Telegram private chat']], $router->install_pairing_payloads, 'install pairing request');
-    assertSame("Установите Core на VPS этой командой:\n\n<pre><code>curl -fsSL https://codexgate.ru/install-core.php.gz | gunzip | sudo php -- --pair 7KQW-9MTR-X5NP-3YZA</code></pre>\n\nНовый код в любой момент можно получить командой /start или /install.", $result['messages'][0]['text'] ?? '', 'install command shown');
+    assertSame("Установите Core на VPS этой командой:\n\n<pre><code>curl -fsSL https://codexgate.ru/install-core.php.gz | gunzip | sudo php -- --pair 7KQW-9MTR-X5NP-3YZA</code></pre>\n\nНовый код в любой момент можно получить командой /start.", $result['messages'][0]['text'] ?? '', 'install command shown');
     assertSame('HTML', $telegram->sent_messages[0]['parse_mode'] ?? null, 'install command parse mode');
+    assertSame(null, $telegram->sent_messages[0]['reply_to_message_id'] ?? null, 'install instructions are standalone');
     assertSame([], $router->ingress_payloads, 'install command not forwarded');
 }
 
