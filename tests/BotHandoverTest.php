@@ -191,9 +191,74 @@ function testInactiveBotGroupMessageIsNotForwarded(): void
     assertSame([], $next->updates, 'inactive group update not forwarded');
 }
 
+function testGroupCommandAddressedToAnotherBotIsIgnored(): void
+{
+    $current = bot('current_bot', 1);
+    $registry = new MemoryBotRegistry(['current_bot' => $current], 'current_bot');
+    $next = new RecordingIncomingHandler();
+    $lock = new ImmediateChatLock();
+    $handler = new BotAwareIncomingUpdateHandler(
+        $current,
+        $registry,
+        $lock,
+        new BotHandoverHandler($registry, $lock, new MemoryBotClientFactory()),
+        $next
+    );
+
+    $result = $handler->handleIncomingUpdate(['message' => ['chat' => ['id' => -100, 'type' => 'supergroup'], 'text' => '/done@oberbot']]);
+
+    assertSame(false, $result['accepted'], 'other bot command ignored');
+    assertSame([], $next->updates, 'other bot command not forwarded');
+}
+
+function testBareDoneGroupCommandIsReservedForOtherBots(): void
+{
+    $current = bot('current_bot', 1);
+    $registry = new MemoryBotRegistry(['current_bot' => $current], 'current_bot');
+    $next = new RecordingIncomingHandler();
+    $lock = new ImmediateChatLock();
+    $handler = new BotAwareIncomingUpdateHandler(
+        $current,
+        $registry,
+        $lock,
+        new BotHandoverHandler($registry, $lock, new MemoryBotClientFactory()),
+        $next
+    );
+
+    $result = $handler->handleIncomingUpdate(['message' => ['chat' => ['id' => -100, 'type' => 'supergroup'], 'text' => '/done']]);
+
+    assertSame(false, $result['accepted'], 'bare done ignored');
+    assertSame([], $next->updates, 'bare done not forwarded');
+}
+
+function testBareAndCurrentBotGroupCommandsAreForwarded(): void
+{
+    $current = bot('current_bot', 1);
+    $registry = new MemoryBotRegistry(['current_bot' => $current], 'current_bot');
+    $next = new RecordingIncomingHandler();
+    $lock = new ImmediateChatLock();
+    $handler = new BotAwareIncomingUpdateHandler(
+        $current,
+        $registry,
+        $lock,
+        new BotHandoverHandler($registry, $lock, new MemoryBotClientFactory()),
+        $next
+    );
+
+    $bare = ['message' => ['chat' => ['id' => -100, 'type' => 'supergroup'], 'text' => '/close']];
+    $addressed = ['message' => ['chat' => ['id' => -100, 'type' => 'supergroup'], 'text' => '/close@Current_Bot']];
+    $handler->handleIncomingUpdate($bare);
+    $handler->handleIncomingUpdate($addressed);
+
+    assertSame([$bare, $addressed], $next->updates, 'bare and current bot commands forwarded');
+}
+
 testBotTokenCipherRoundTrip();
 testHandoverReplacesActiveBotUnderOneChatLock();
 testNextHandoverSeesPreviousNewBotAsOld();
 testHandoverTreatsDefaultBotAsOldWithoutExplicitRoute();
 testPrivateMessageActivatesReceivingBotBeforeForwarding();
 testInactiveBotGroupMessageIsNotForwarded();
+testGroupCommandAddressedToAnotherBotIsIgnored();
+testBareDoneGroupCommandIsReservedForOtherBots();
+testBareAndCurrentBotGroupCommandsAreForwarded();

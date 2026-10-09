@@ -1358,7 +1358,7 @@ function testIgnoredGroupScopeLeavesMemberMessagesAndCommandsUntouched(): void
         $ignore_store
     );
 
-    foreach (['discussion', '/done', '/unignore'] as $offset => $text) {
+    foreach (['discussion', '/close', '/unignore'] as $offset => $text) {
         $result = $transport->handleIncomingUpdate([
             'update_id' => 110 + $offset,
             'message' => [
@@ -1527,7 +1527,7 @@ function testDoneCommandRejectsNonThreadChat(): void
         'update_id' => 24,
         'message' => [
             'message_id' => 918,
-            'text' => '/done',
+            'text' => '/close',
             'chat' => [
                 'id' => 100,
                 'type' => 'private',
@@ -1536,7 +1536,7 @@ function testDoneCommandRejectsNonThreadChat(): void
     ]);
 
     assertSame(true, $result['accepted'], 'done diagnostic accepted');
-    assertSame('Команда /done работает только в forum topic.', $result['messages'][0]['text'] ?? null, 'done diagnostic');
+    assertSame('Команда /close работает только в forum topic.', $result['messages'][0]['text'] ?? null, 'close diagnostic');
     assertSame([], $router->ingress_payloads, 'done diagnostic not forwarded');
     assertSame([], $telegram->edited_topics, 'done diagnostic no topic edit');
     assertSame([], $telegram->closed_topics, 'done diagnostic no topic close');
@@ -1560,7 +1560,7 @@ function testDoneCommandEditsIconAndClosesForumTopic(): void
         'message' => [
             'message_id' => 919,
             'message_thread_id' => 77,
-            'text' => '/done',
+            'text' => '/close',
             'from' => ['id' => 7],
             'chat' => [
                 'id' => -100123,
@@ -1603,7 +1603,7 @@ function testDoneCommandReportsTelegramPermissionFailureWithoutCrash(): void
         'message' => [
             'message_id' => 920,
             'message_thread_id' => 77,
-            'text' => '/done',
+            'text' => '/close',
             'from' => ['id' => 7],
             'chat' => [
                 'id' => -100123,
@@ -1613,7 +1613,7 @@ function testDoneCommandReportsTelegramPermissionFailureWithoutCrash(): void
     ]);
 
     assertSame(true, $result['accepted'], 'done permission failure accepted');
-    assertSame('Команда /done недоступна: у бота нет прав администратора для управления темой.', $result['messages'][0]['text'] ?? null, 'done permission failure diagnostic');
+    assertSame('Команда /close недоступна: у бота нет прав администратора для управления темой.', $result['messages'][0]['text'] ?? null, 'close permission failure diagnostic');
     assertSame([], $router->ingress_payloads, 'done permission failure not forwarded');
     assertSame([], $telegram->closed_topics, 'done permission failure no topic close');
 }

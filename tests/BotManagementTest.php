@@ -82,8 +82,8 @@ function testAddBotConsumesTokenAndRegistersWebhook(): void
     assertSame(['default', 'all_private_chats', 'all_chat_administrators'], array_map(fn(array $set) => $set[1]['type'] ?? '', $new_client->command_sets), 'command scopes configured');
     assertTrue(in_array('addbot', array_column($new_client->command_sets[1][0], 'command'), true), 'addbot visible in private');
     assertTrue(!in_array('addbot', array_column($new_client->command_sets[2][0], 'command'), true), 'addbot hidden in groups');
-    assertTrue(!in_array('done', array_column($new_client->command_sets[1][0], 'command'), true), 'done hidden in private');
-    assertTrue(in_array('done', array_column($new_client->command_sets[2][0], 'command'), true), 'done visible to group admins');
+    assertTrue(!in_array('close', array_column($new_client->command_sets[1][0], 'command'), true), 'close hidden in private');
+    assertTrue(in_array('close', array_column($new_client->command_sets[2][0], 'command'), true), 'close visible to group admins');
 }
 
 function testProtectedBotCannotBeDeleted(): void

@@ -19,6 +19,12 @@ final class BotAwareIncomingUpdateHandler implements IncomingUpdateHandlerInterf
 
     public function handleIncomingUpdate(array $update): array
     {
+        $message = $update['message'] ?? null;
+        $chat = is_array($message) ? ($message['chat'] ?? null) : null;
+        if (is_array($chat) && in_array(($chat['type'] ?? null), ['group', 'supergroup'], true) && $this->mustIgnoreGroupCommand($message)) {
+            return ['accepted' => false, 'messages' => []];
+        }
+
         if ($this->handover->handle($this->bot, $update)) {
             return ['accepted' => true, 'messages' => []];
         }
@@ -26,8 +32,6 @@ final class BotAwareIncomingUpdateHandler implements IncomingUpdateHandlerInterf
             return ['accepted' => true, 'messages' => []];
         }
 
-        $message = $update['message'] ?? null;
-        $chat = is_array($message) ? ($message['chat'] ?? null) : null;
         if (is_array($chat) && in_array(($chat['type'] ?? null), ['group', 'supergroup'], true) && isset($chat['id'])) {
             $active_bot = $this->registry->activeBotForChat((string) $chat['id']);
             if ($active_bot->bot_key !== $this->bot->bot_key) {
@@ -51,5 +55,19 @@ final class BotAwareIncomingUpdateHandler implements IncomingUpdateHandlerInterf
         }
 
         return $this->next->handleIncomingUpdate($update);
+    }
+
+    /** @param array<string, mixed> $message */
+    private function mustIgnoreGroupCommand(array $message): bool
+    {
+        $text = trim((string) ($message['text'] ?? ''));
+        if (preg_match('/^\/done(?:@\S+)?(?:\s|$)/ui', $text) === 1) {
+            return true;
+        }
+        if (preg_match('/^\/[a-z0-9_]+@([a-z0-9_]+)(?:\s|$)/i', $text, $matches) !== 1) {
+            return false;
+        }
+
+        return strcasecmp($matches[1], ltrim($this->bot->username, '@')) !== 0;
     }
 }

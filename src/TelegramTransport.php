@@ -106,7 +106,7 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
         if ($this->isGroupMessage($message)) {
             $access_mode = $this->group_access?->modeForGroup($message->chat_id) ?? 'admins';
             $access_command = $this->parseAccessCommand($message->text);
-            $administrative_command = $this->isIgnoreCommand($message->text) || $this->isUnignoreCommand($message->text) || $this->isDoneCommand($message->text);
+            $administrative_command = $this->isIgnoreCommand($message->text) || $this->isUnignoreCommand($message->text) || $this->isCloseCommand($message->text);
             $is_administrator = $access_mode === 'admins' || $access_command !== false || $administrative_command ? $this->isGroupAdministrator($message) : false;
             $can_write = $access_mode === 'members' || $is_administrator;
             if ($access_command !== false) {
@@ -249,8 +249,8 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
             ];
         }
 
-        if ($this->isDoneCommand($message->text)) {
-            return $this->handleDoneCommand($message);
+        if ($this->isCloseCommand($message->text)) {
+            return $this->handleCloseCommand($message);
         }
 
         $oversized_attachment = $this->findOversizedAttachment($message->attachments);
@@ -779,15 +779,15 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
         return preg_match('/^\/note(?:@\S+)?(?:\s+.*)?$/ui', trim($text)) === 1;
     }
 
-    private function isDoneCommand(string $text): bool
+    private function isCloseCommand(string $text): bool
     {
-        return preg_match('/^\/done(?:@\S+)?\s*$/ui', trim($text)) === 1;
+        return preg_match('/^\/close(?:@\S+)?\s*$/ui', trim($text)) === 1;
     }
 
     /**
      * @return array{accepted: bool, messages: list<array<string, mixed>>}
      */
-    private function handleDoneCommand(TelegramInboundMessage $message): array
+    private function handleCloseCommand(TelegramInboundMessage $message): array
     {
         if ($message->thread_id === null || $message->thread_id <= 0) {
             RuntimeLog::info('Rejected local done command outside forum topic', [
@@ -798,7 +798,7 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
             return [
                 'accepted' => true,
                 'messages' => [
-                    $this->sendTextReply($message, 'Команда /done работает только в forum topic.', null, true),
+                    $this->sendTextReply($message, 'Команда /close работает только в forum topic.', null, true),
                 ],
             ];
         }
@@ -815,7 +815,7 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
                 'messages' => [
                     $this->sendTextReply(
                         $message,
-                        'Команда /done не настроена: отсутствует done_forum_topic_icon_custom_emoji_id.',
+                        'Команда /close не настроена: отсутствует done_forum_topic_icon_custom_emoji_id.',
                         null,
                         true
                     ),
@@ -840,7 +840,7 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
                 'messages' => [
                     $this->sendTextReply(
                         $message,
-                        'Команда /done недоступна: у бота нет прав администратора для управления темой.',
+                        'Команда /close недоступна: у бота нет прав администратора для управления темой.',
                         null,
                         true
                     ),

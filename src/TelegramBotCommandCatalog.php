@@ -7,7 +7,7 @@ namespace CodexMultitenant\TransportTelegram;
 final class TelegramBotCommandCatalog
 {
     private const PRIVATE_ONLY = ['addbot', 'delbot', 'updatetoken', 'pair', 'install'];
-    private const GROUP_ONLY = ['access', 'ignore', 'unignore', 'done'];
+    private const GROUP_ONLY = ['access', 'ignore', 'unignore', 'close'];
 
     /**
      * @return list<array{command: string, description: string}>
@@ -76,7 +76,7 @@ final class TelegramBotCommandCatalog
                 'description' => 'Сохранить заметку без отправки дальше',
             ],
             [
-                'command' => 'done',
+                'command' => 'close',
                 'description' => 'Закрыть текущий топик форума',
             ],
             [
