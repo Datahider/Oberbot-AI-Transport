@@ -183,6 +183,7 @@
 - Transport передаёт `binding` как строковый Telegram `chat_id`, `label` — имя Telegram-пользователя или `Telegram private chat`.
 - Пустая `/pair`, `/pair` в группе и отказ Router обрабатываются локально и не передаются как ingress.
 - При успехе transport отвечает `Core привязан.`; при отказе — `Код неверен, просрочен или уже использован.` либо `Этот чат уже привязан к другому Core.`.
+- В group/supergroup slash-команда, явно адресованная другому боту через `@username`, игнорируется и не передаётся Router; голые команды и команды, адресованные текущему боту, обрабатываются как прежде.
 - `Transport-Telegram` обрабатывает локально только `/status`.
 - Поддержанные формы:
   - `/status`
@@ -196,7 +197,7 @@
   - `/voicesilent`
   - `/voiceglobal`
   - `/note <text>`
-  - `/done`
+  - `/close`
 - `/ignore` включает ingress-ignore для текущего Telegram target:
   - если сообщение пришло из forum topic, ignore scope равен точному `opaque` (`<chat_id>:<thread_id>`)
   - если сообщение пришло не из forum topic, ignore scope равен всему `chat_id`
@@ -214,13 +215,13 @@
 - Все три команды отвечают подтверждением, влияют только на Telegram-представление транскрипции и никогда не передаются в `Router`.
 - `/note <text>` не делает никаких transport-side действий, не отвечает пользователю и не пересылается в `Router`.
 - `/note` без непустого текста также не пересылается в `Router`.
-- `/done` работает только в forum topic.
-- `/done` вне forum topic отвечает диагностикой и не пересылается в `Router`.
-- `/done` в forum topic:
+- `/close` работает только в forum topic.
+- `/close` вне forum topic отвечает диагностикой и не пересылается в `Router`.
+- `/close` в forum topic:
   - меняет icon темы на `transport.done_forum_topic_icon_custom_emoji_id`
   - затем закрывает тему
   - затем отвечает подтверждением в тот же topic
-- Если `transport.done_forum_topic_icon_custom_emoji_id` не настроен, `/done` отвечает диагностикой и не выполняет partial-action.
+- Если `transport.done_forum_topic_icon_custom_emoji_id` не настроен, `/close` отвечает диагностикой и не выполняет partial-action.
 - Неизвестные slash-команды не являются transport-local command и должны уходить в `Router` как обычный текст.
 
 ## Telegram Bot Commands Menu Contract
@@ -235,7 +236,7 @@
   - `/voices` — `Показать доступные голоса`
   - `/voice` — `Показать или выбрать голос`
   - `/note` — `Сохранить заметку без отправки дальше`
-  - `/done` — `Закрыть текущий топик форума`
+  - `/close` — `Закрыть текущий топик форума`
   - `/stop` — `Прервать текущий ход агента`
   - `/reset` — `Сбросить codex session для текущего диалога`
   - `/session` — `Проверить или задать codex session для текущего диалога`
@@ -386,7 +387,7 @@
 - Сообщение с bot token удаляется из Telegram до вызова `getMe`, не логируется и никогда не передаётся в Router.
 - `/addbot`: token проверяется через `getMe`. Для нового Telegram user ID Transport создаёт `bot_key` и webhook secret. Для уже зарегистрированного Telegram user ID Transport заменяет только token и актуальный username, сохраняя `bot_key`, webhook secret, routes, `is_default` и `deletion_protected`. Затем Transport устанавливает команды и webhook и сообщает, был бот добавлен или его token обновлён.
 - `/updatetoken` не запрашивает token. Он объясняет, что новый token нужно отправить через `/addbot` любому из ботов с `deletion_protected=true`, и выводит до 5 случайных `@username` таких ботов. Команда обрабатывается локально и не уходит в Router.
-- Telegram command menu по умолчанию пустое. Для `all_private_chats` показываются все команды, кроме групповых `/ignore`, `/unignore`, `/done`. Для `all_chat_administrators` показываются все команды, кроме личных `/addbot`, `/delbot`, `/updatetoken`. Обычные участники групп меню команд не видят.
+- Telegram command menu по умолчанию пустое. Для `all_private_chats` показываются все команды, кроме групповых `/ignore`, `/unignore`, `/close`. Для `all_chat_administrators` показываются все команды, кроме личных `/addbot`, `/delbot`, `/updatetoken`. Обычные участники групп меню команд не видят.
 - Области command menu устанавливаются при новой регистрации, обновлении token и административной перенастройке webhook.
 - `/delbot`: `getMe` переданного token обязан вернуть Telegram user ID текущего бота. Это единственная проверка права на удаление.
 - Каждый bot record имеет `deletion_protected`. Защищённый бот не удаляется через Telegram даже при верном token. Признак меняется только административно.
@@ -401,7 +402,7 @@
 - `/access` без аргумента показывает текущий режим. `/access admins` и `/access members` меняют его. Команда работает только в group/supergroup и всегда отвечает в той же теме.
 - Менять режим может только Telegram member со `status=creator`. Анонимный администратор не считается доказанным владельцем.
 - В `admins` обычный участник не может даже просматривать `/access`, поскольку его сообщения запрещены. В `members` текущий режим может посмотреть любой участник, но изменить — только владелец.
-- `members` разрешает обычные ingress-сообщения, но не повышает права на локальные административные команды. `/ignore`, `/unignore` и `/done` остаются доступны только владельцу/администратору.
+- `members` разрешает обычные ingress-сообщения, но не повышает права на локальные административные команды. `/ignore`, `/unignore` и `/close` остаются доступны только владельцу/администратору.
 
 ## Process Loop
 - Один процесс transport instance:
