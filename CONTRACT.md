@@ -276,6 +276,15 @@
 ### Outbound Rendering
 - Transport обрабатывает только явно перечисленные ниже `kind`.
 - Любой неизвестный `kind` молча игнорируется: Telegram API не вызывается, fallback на `final` запрещён, delivery не считается ошибочным.
+- `kind=tool` является служебным событием и не отправляется в Telegram.
+- Transport поддерживает только `kind=tool` с `meta.type=list` и непустым строковым `meta.request_id`.
+- На такой запрос Transport публикует через `POST /api/v2/transport/ingress` ответ для того же transport target:
+  - `binding` равен `chat_id`, полученному штатным `resolveOpaque`;
+  - `opaque` переносится без изменений;
+  - `kind=tool`, `text=""`, `attachments=[]`;
+  - `meta.type=list`, исходный `meta.request_id` без изменений и `meta.tools=[]`.
+- `meta.type=call|result|error` и любой другой `meta.type` не поддерживаются.
+- Неизвестный `meta.type`, отсутствующий или пустой `meta.request_id` и некорректный tool payload являются явной ошибкой обработки. Они не вызывают Telegram API, не создают ingress-ответ и не прерывают обработку последующих outbound events. Диагностическое Telegram-сообщение для такой ошибки не отправляется.
 - `kind=final`:
   - markdown от core конвертируется в Telegram HTML через `fastvolt/markdown`
   - затем применяется существующая процедура очистки несовместимых тегов

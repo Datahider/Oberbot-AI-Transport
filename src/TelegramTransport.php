@@ -322,6 +322,11 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
 
     public function deliverOutboundEvent(OutboundEvent $event): void
     {
+        if ($event->kind === 'tool') {
+            $this->handleToolEvent($event);
+            return;
+        }
+
         if (!in_array($event->kind, ['final', 'commentary', 'warning', 'system', 'transcript', 'status', 'heartbeat', 'document', 'image', 'voice'], true)) {
             return;
         }
@@ -536,6 +541,37 @@ final class TelegramTransport implements IncomingUpdateHandlerInterface, Outboun
                 throw new RuntimeException('Cannot remove temporary outbound document');
             }
         }
+    }
+
+    private function handleToolEvent(OutboundEvent $event): void
+    {
+        if (($event->meta['type'] ?? null) !== 'list') {
+            throw new InvalidToolEventException('Unsupported outbound tool event type');
+        }
+
+        $request_id = $event->meta['request_id'] ?? null;
+        if (!is_string($request_id) || trim($request_id) === '') {
+            throw new InvalidToolEventException('Outbound tool event request_id must be a non-empty string');
+        }
+
+        try {
+            [$chat_id] = $this->resolveOpaque($event->opaque);
+        } catch (Throwable $exception) {
+            throw new InvalidToolEventException('Outbound tool event opaque is invalid', 0, $exception);
+        }
+
+        $this->router->postIngress([
+            'binding' => $chat_id,
+            'opaque' => $event->opaque,
+            'kind' => 'tool',
+            'text' => '',
+            'attachments' => [],
+            'meta' => [
+                'type' => 'list',
+                'request_id' => $request_id,
+                'tools' => [],
+            ],
+        ]);
     }
 
     private function deliverImage(OutboundEvent $event, string $chat_id, ?int $thread_id): void

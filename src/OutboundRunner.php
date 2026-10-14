@@ -78,6 +78,14 @@ final class OutboundRunner
                             'exception_class' => $e::class,
                         ]);
                         $this->pause(self::TRANSIENT_RETRY_DELAY_MS);
+                    } catch (InvalidToolEventException $e) {
+                        RuntimeLog::error('Outbound tool event rejected', [
+                            'event_id' => $event->event_id,
+                            'kind' => $event->kind,
+                            'opaque' => $event->opaque,
+                            'error' => $e->getMessage(),
+                        ]);
+                        break;
                     } catch (\Throwable $e) {
                         RuntimeLog::error('Outbound delivery failed', [
                             'event_id' => $event->event_id,

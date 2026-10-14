@@ -620,6 +620,44 @@ function testUnknownOutboundKindIsSilentlyIgnored(): void
     assertSame([], $telegram->chat_actions, 'unknown kind chat actions');
 }
 
+function testToolListReturnsEmptyToolListThroughRouterIngress(): void
+{
+    $router = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router,
+        $telegram,
+        new InMemoryTenantMap([]),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+
+    $transport->deliverOutboundEvent(new OutboundEvent(
+        event_id: 144,
+        opaque: '-100123:77',
+        kind: 'tool',
+        text: '',
+        attachments: [],
+        meta: ['type' => 'list', 'request_id' => 'request-1']
+    ));
+
+    assertSame([[
+        'binding' => '-100123',
+        'opaque' => '-100123:77',
+        'kind' => 'tool',
+        'text' => '',
+        'attachments' => [],
+        'meta' => [
+            'type' => 'list',
+            'request_id' => 'request-1',
+            'tools' => [],
+        ],
+    ]], $router->ingress_payloads, 'tool list ingress response');
+    assertSame([], $telegram->sent_messages, 'tool list does not send Telegram message');
+    assertSame([], $telegram->chat_actions, 'tool list does not send Telegram action');
+}
+
 function testDocumentOutboundDownloadsAndSendsTelegramDocument(): void
 {
     $router = new FakeRouterClient();
@@ -1776,6 +1814,70 @@ function testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery(): void
     assertSame('done', $telegram->sent_messages[0]['text'] ?? null, 'delivered final text');
 }
 
+function testOutboundRunnerRejectsInvalidToolEventWithoutDiagnosticAndContinues(): void
+{
+    $router_ingress = new FakeRouterClient();
+    $telegram = new FakeTelegramClient();
+    $transport = new TelegramTransport(
+        buildConfig(),
+        $router_ingress,
+        $telegram,
+        new InMemoryTenantMap([]),
+        new InMemoryStatusStateStore(),
+        new InMemoryIgnoreStateStore()
+    );
+    $cursor_store = new InMemoryCursorStore();
+    $router_outbound = new SequencedOutboundRouterClient([[
+        [
+            'event_id' => 52,
+            'opaque' => '-100123:77',
+            'kind' => 'tool',
+            'text' => '',
+            'attachments' => [],
+            'meta' => ['type' => 'call', 'request_id' => 'request-2'],
+        ],
+        [
+            'event_id' => 53,
+            'opaque' => '-100123:77',
+            'kind' => 'tool',
+            'text' => '',
+            'attachments' => [],
+            'meta' => ['type' => 'list', 'request_id' => ''],
+        ],
+        [
+            'event_id' => 54,
+            'opaque' => '-100123:77',
+            'kind' => 'final',
+            'text' => 'next event',
+            'attachments' => [],
+            'meta' => [],
+        ],
+    ]]);
+    $log_records = [];
+    RuntimeLog::setObserver(static function (array $record) use (&$log_records): void {
+        $log_records[] = $record;
+    });
+
+    try {
+        (new OutboundRunner($router_outbound, $transport, $cursor_store))->run();
+        fail('Expected runner to stop after fake router exhaustion');
+    } catch (RuntimeException $e) {
+        assertSame('stop polling', $e->getMessage(), 'runner stop marker');
+    } finally {
+        RuntimeLog::setObserver(null);
+    }
+
+    assertSame([], $router_ingress->ingress_payloads, 'invalid tool events do not create ingress responses');
+    assertSame(1, count($telegram->sent_messages), 'only following final event reaches Telegram');
+    assertSame('next event', $telegram->sent_messages[0]['text'] ?? null, 'runner continues after invalid tool events');
+    assertSame(54, $cursor_store->router_after_id, 'cursor advances through invalid tool events');
+    $delivery_errors = array_values(array_filter(
+        $log_records,
+        static fn (array $record): bool => ($record['message'] ?? null) === 'Outbound tool event rejected'
+    ));
+    assertSame(2, count($delivery_errors), 'invalid tool events logged as explicit errors');
+}
+
 function testLongFinalFallsBackToDocumentWithCaption(): void
 {
     $telegram = new FakeTelegramClient();
@@ -2653,6 +2755,7 @@ testLongWarningFallsBackToDocumentWithWarningCaption();
 testSystemMessageHasGearPrefix();
 testTranscriptSendsExpandableEscapedQuote();
 testUnknownOutboundKindIsSilentlyIgnored();
+testToolListReturnsEmptyToolListThroughRouterIngress();
 testDocumentOutboundDownloadsAndSendsTelegramDocument();
 testImageOutboundDownloadsAndSendsTelegramPhoto();
 testVoiceOutboundDownloadsAndSendsTelegramVoice();
@@ -2688,6 +2791,7 @@ testUnrelatedStartPayloadIsForwarded();
 testInstallCommandCreatesThreeHourPairingCode();
 testPlainStartCreatesInstallPairingCode();
 testOutboundRunnerAdvancesCursorAfterSuccessfulDelivery();
+testOutboundRunnerRejectsInvalidToolEventWithoutDiagnosticAndContinues();
 testLongFinalFallsBackToDocumentWithCaption();
 testOutboundRunnerReportsPermanentDeliveryFailureAndAdvancesCursor();
 testOutboundRunnerAdvancesCursorWhenFailureDiagnosticAlsoFails();
