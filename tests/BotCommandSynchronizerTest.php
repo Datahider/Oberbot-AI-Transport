@@ -2,11 +2,14 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/bootstrap.php';
+
 use CodexMultitenant\TransportTelegram\BotCommandSynchronizer;
 use CodexMultitenant\TransportTelegram\BotManagementClientFactoryInterface;
 use CodexMultitenant\TransportTelegram\BotManagementClientInterface;
 use CodexMultitenant\TransportTelegram\BotRecord;
 use CodexMultitenant\TransportTelegram\BotRegistryInterface;
+use CodexMultitenant\TransportTelegram\RuntimeLog;
 
 final class CommandSyncRegistry implements BotRegistryInterface
 {
@@ -30,8 +33,15 @@ final class CommandSyncRegistry implements BotRegistryInterface
 final class CommandSyncClient implements BotManagementClientInterface
 {
     public array $command_sets = [];
+    public function __construct(private bool $fail = false) {}
     public function getMe(): array { return []; }
-    public function setMyCommands(array $commands, ?array $scope = null): void { $this->command_sets[] = [$commands, $scope]; }
+    public function setMyCommands(array $commands, ?array $scope = null): void
+    {
+        if ($this->fail) {
+            throw new RuntimeException('revoked token');
+        }
+        $this->command_sets[] = [$commands, $scope];
+    }
     public function setWebhook(string $url, string $secret_token, string $ip_address): void {}
     public function deleteWebhook(): void {}
     public function deleteMessage(int|string $chat_id, int $message_id): void {}
@@ -44,6 +54,7 @@ final class CommandSyncClientFactory implements BotManagementClientFactoryInterf
     /** @var array<string, CommandSyncClient> */
     public array $clients = [];
     public array $events = [];
+    public array $failing_bot_keys = [];
     public function __construct(?array &$events = null)
     {
         if ($events !== null) {
@@ -53,9 +64,36 @@ final class CommandSyncClientFactory implements BotManagementClientFactoryInterf
     public function create(BotRecord $bot): BotManagementClientInterface
     {
         $this->events[] = 'sync:' . $bot->bot_key;
-        return $this->clients[$bot->bot_key] ??= new CommandSyncClient();
+        return $this->clients[$bot->bot_key] ??= new CommandSyncClient(in_array($bot->bot_key, $this->failing_bot_keys, true));
     }
     public function createFromToken(string $token): BotManagementClientInterface { throw new RuntimeException('unused'); }
+}
+
+function testSynchronizerIsolatesRevokedBotToken(): void
+{
+    $factory = new CommandSyncClientFactory();
+    $factory->failing_bot_keys = ['b'];
+    $logs = [];
+    RuntimeLog::setObserver(static function (array $payload) use (&$logs): void {
+        $logs[] = $payload;
+    });
+
+    try {
+        (new BotCommandSynchronizer(
+            new CommandSyncRegistry([syncBot('a', 1), syncBot('b', 2), syncBot('c', 3)]),
+            $factory
+        ))->syncAll();
+    } finally {
+        RuntimeLog::setObserver(null);
+    }
+
+    assertSame(3, count($factory->clients['a']->command_sets), 'first bot synchronized');
+    assertSame(0, count($factory->clients['b']->command_sets), 'revoked bot rejected');
+    assertSame(3, count($factory->clients['c']->command_sets), 'bot after revoked token synchronized');
+    $errors = array_values(array_filter($logs, static fn (array $log): bool => ($log['level'] ?? '') === 'ERROR'));
+    assertSame('b', $errors[0]['context']['bot_key'] ?? null, 'failed bot key logged');
+    assertSame('b', $errors[0]['context']['username'] ?? null, 'failed bot username logged');
+    assertSame('revoked token', $errors[0]['context']['error'] ?? null, 'sync error logged');
 }
 
 function syncBot(string $key, int $id): BotRecord
@@ -88,5 +126,6 @@ function testSynchronizerUpdatesCommandsForEveryEnabledBot(): void
 }
 
 testSynchronizerUpdatesCommandsForEveryEnabledBot();
+testSynchronizerIsolatesRevokedBotToken();
 
 fwrite(STDOUT, "Bot command synchronizer tests: OK\n");
