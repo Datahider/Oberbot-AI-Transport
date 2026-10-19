@@ -33,6 +33,7 @@ final class ManagementRegistry implements BotRegistryInterface
     public array $route_types;
     public function __construct(array $bots, array $routes = [], array $route_types = []) { $this->bots = $bots; $this->routes = $routes; $this->route_types = $route_types; }
     public function botByKey(string $bot_key): BotRecord { return $this->bots[$bot_key]; }
+    public function enabledBots(): array { return array_values($this->bots); }
     public function botByTelegramUserId(int $telegram_user_id): ?BotRecord { foreach ($this->bots as $bot) if ($bot->telegram_user_id === $telegram_user_id) return $bot; return null; }
     public function defaultBot(): BotRecord { return reset($this->bots); }
     public function activeBotForChat(string $chat_id): BotRecord { return $this->bots[$this->routes[$chat_id] ?? array_key_first($this->bots)]; }

@@ -6,6 +6,7 @@ require_once __DIR__ . '/bootstrap.php';
 
 use CodexMultitenant\TransportTelegram\MainRunner;
 use CodexMultitenant\TransportTelegram\RuntimeLog;
+use CodexMultitenant\TransportTelegram\BotCommandSynchronizer;
 
 function testMainRunnerStartsInboundAndOutboundWorkers(): void
 {
@@ -115,6 +116,34 @@ function testMainRunnerStartsOnlyOutboundWhenTelegramPollingIsDisabled(): void
     assertSame(['outbound'], $started, 'only outbound worker started');
 }
 
+function testMainRunnerSynchronizesCommandsBeforeWorkers(): void
+{
+    $events = [];
+    $factory = new CommandSyncClientFactory();
+    $synchronizer = new BotCommandSynchronizer(new CommandSyncRegistry([syncBot('a', 1)]), $factory);
+
+    $runner = new MainRunner(
+        buildConfig(),
+        __DIR__,
+        __FILE__,
+        __FILE__,
+        static function (string $name) use (&$events): int {
+            $events[] = 'worker:' . $name;
+            return count($events) + 4000;
+        },
+        static fn (int $pid): bool => true,
+        static function (int $milliseconds): void {},
+        1,
+        $synchronizer
+    );
+
+    $runner->run();
+
+    assertSame(3, count($factory->clients['a']->command_sets), 'commands synchronized during main startup');
+    assertSame(['sync:a'], $factory->events, 'command synchronization executed');
+    assertSame(['worker:inbound', 'worker:outbound'], $events, 'workers started');
+}
+
 function testMainRunnerRestartsExitedWorkerAndLogsIt(): void
 {
     $launches = [];
@@ -175,6 +204,7 @@ function testMainRunnerRestartsExitedWorkerAndLogsIt(): void
 testMainRunnerStartsInboundAndOutboundWorkers();
 testMainRunnerWorkerBootstrapUsesLogFileObserver();
 testMainRunnerStartsOnlyOutboundWhenTelegramPollingIsDisabled();
+testMainRunnerSynchronizesCommandsBeforeWorkers();
 testMainRunnerRestartsExitedWorkerAndLogsIt();
 
 fwrite(STDOUT, "MainRunner tests: OK\n");

@@ -20,6 +20,7 @@ final class MemoryBotRegistry implements BotRegistryInterface
     /** @param array<string, BotRecord> $bots */
     public function __construct(public array $bots, public ?string $default_key, public array $routes = []) {}
     public function botByKey(string $bot_key): BotRecord { return $this->bots[$bot_key]; }
+    public function enabledBots(): array { return array_values($this->bots); }
     public function botByTelegramUserId(int $telegram_user_id): ?BotRecord { foreach ($this->bots as $bot) if ($bot->telegram_user_id === $telegram_user_id) return $bot; return null; }
     public function defaultBot(): BotRecord { return $this->bots[(string) $this->default_key]; }
     public function activeBotForChat(string $chat_id): BotRecord { return $this->bots[$this->routes[$chat_id] ?? (string) $this->default_key]; }
