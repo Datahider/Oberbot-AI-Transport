@@ -95,6 +95,10 @@ final class TelegramBotCommandCatalog
                 'command' => 'limits',
                 'description' => 'Показать текущие лимиты Codex',
             ],
+            [
+                'command' => 'model',
+                'description' => 'Показать или выбрать модель Codex',
+            ],
         ];
     }
 
