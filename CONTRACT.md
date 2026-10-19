@@ -242,7 +242,8 @@
   - `/reset` — `Сбросить codex session для текущего диалога`
   - `/session` — `Проверить или задать codex session для текущего диалога`
   - `/limits` — `Показать текущие лимиты Codex`
-- `/stop`, `/reset`, `/session`, `/limits` не являются transport-local command и публикуются только для bot menu.
+  - `/model` — `Показать или выбрать модель Codex`
+- `/stop`, `/reset`, `/session`, `/limits`, `/model` не являются transport-local command и публикуются только для bot menu.
 - Ошибка `setMyCommands` считается operational failure и должна прерывать запуск без fallback.
 
 ## Ignore State Contract
