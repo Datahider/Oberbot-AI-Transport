@@ -246,7 +246,8 @@
 - `/stop`, `/reset`, `/session`, `/limits`, `/model` не являются transport-local command и публикуются только для bot menu.
 - При каждом старте основного Transport-сервиса меню переустанавливается для
   всех enabled-ботов до запуска inbound/outbound workers.
-- Ошибка `setMyCommands` для любого бота прерывает запуск Transport без fallback.
+- Ошибка `setMyCommands` одного бота логируется с `bot_key` и `username`, но не прерывает
+  синхронизацию остальных ботов и запуск Transport.
 - Ошибка `setMyCommands` считается operational failure и должна прерывать запуск без fallback.
 
 ## Ignore State Contract
