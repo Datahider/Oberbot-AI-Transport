@@ -908,6 +908,16 @@ function testIngressRunnerRegistersBotCommandsBeforePolling(): void
             'description' => 'Показать текущие лимиты Codex',
         ],
     ], $limits_commands, 'limits command registered');
+    $model_commands = array_values(array_filter(
+        $telegram->command_sets['all_private_chats'] ?? [],
+        static fn (array $command): bool => ($command['command'] ?? null) === 'model'
+    ));
+    assertSame([
+        [
+            'command' => 'model',
+            'description' => 'Показать или выбрать модель Codex',
+        ],
+    ], $model_commands, 'model command registered');
     $voice_commands = array_values(array_filter(
         $telegram->bot_commands,
         static fn (array $command): bool => in_array(($command['command'] ?? null), ['voices', 'voice'], true)
