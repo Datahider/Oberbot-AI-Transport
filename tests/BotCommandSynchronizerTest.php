@@ -44,6 +44,12 @@ final class CommandSyncClientFactory implements BotManagementClientFactoryInterf
     /** @var array<string, CommandSyncClient> */
     public array $clients = [];
     public array $events = [];
+    public function __construct(?array &$events = null)
+    {
+        if ($events !== null) {
+            $this->events =& $events;
+        }
+    }
     public function create(BotRecord $bot): BotManagementClientInterface
     {
         $this->events[] = 'sync:' . $bot->bot_key;

@@ -25,7 +25,8 @@ final class MainRunner
         ?callable $worker_launcher = null,
         ?callable $worker_probe = null,
         ?callable $sleep_fn = null,
-        private ?int $max_supervisor_ticks = null
+        private ?int $max_supervisor_ticks = null,
+        private ?BotCommandSynchronizer $command_synchronizer = null
     ) {
         $this->worker_launcher = $worker_launcher;
         $this->worker_probe = $worker_probe;
@@ -45,6 +46,8 @@ final class MainRunner
         if (!is_dir($log_dir)) {
             mkdir($log_dir, 0775, true);
         }
+
+        $this->command_synchronizer?->syncAll();
 
         $workers = [
             'inbound' => [

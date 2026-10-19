@@ -14,6 +14,17 @@ final class DbBotRegistry implements BotRegistryInterface
 {
     public function __construct(private BotTokenCipher $cipher) {}
 
+    public function enabledBots(): array
+    {
+        $result = [];
+        $list = new DBList(TelegramBot::class, ['enabled' => true]);
+        while (($bot = $list->next()) instanceof TelegramBot) {
+            $result[] = $this->record($bot);
+        }
+
+        return $result;
+    }
+
     public function botByKey(string $bot_key): BotRecord
     {
         try {

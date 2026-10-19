@@ -15,11 +15,15 @@ final class RuntimeFactory
         DatabaseBootstrap::connect($config);
         DatabaseBootstrap::initDataStructure();
 
+        $registry = self::createBotRegistry($config);
+        $clients = new TelegramBotClientFactory($config->telegram_base_url, $config->telegram_endpoint_prefix);
+
         return new MainRunner(
             $config,
             dirname(__DIR__),
             __DIR__ . '/bootstrap.php',
-            $config_path
+            $config_path,
+            command_synchronizer: new BotCommandSynchronizer($registry, $clients)
         );
     }
 

@@ -6,6 +6,8 @@ namespace CodexMultitenant\TransportTelegram;
 
 interface BotRegistryInterface
 {
+    /** @return list<BotRecord> */
+    public function enabledBots(): array;
     public function botByKey(string $bot_key): BotRecord;
     public function botByTelegramUserId(int $telegram_user_id): ?BotRecord;
     public function defaultBot(): BotRecord;

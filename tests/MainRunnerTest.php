@@ -119,7 +119,7 @@ function testMainRunnerStartsOnlyOutboundWhenTelegramPollingIsDisabled(): void
 function testMainRunnerSynchronizesCommandsBeforeWorkers(): void
 {
     $events = [];
-    $factory = new CommandSyncClientFactory();
+    $factory = new CommandSyncClientFactory($events);
     $synchronizer = new BotCommandSynchronizer(new CommandSyncRegistry([syncBot('a', 1)]), $factory);
 
     $runner = new MainRunner(
@@ -140,8 +140,7 @@ function testMainRunnerSynchronizesCommandsBeforeWorkers(): void
     $runner->run();
 
     assertSame(3, count($factory->clients['a']->command_sets), 'commands synchronized during main startup');
-    assertSame(['sync:a'], $factory->events, 'command synchronization executed');
-    assertSame(['worker:inbound', 'worker:outbound'], $events, 'workers started');
+    assertSame(['sync:a', 'worker:inbound', 'worker:outbound'], $events, 'commands synchronized before workers');
 }
 
 function testMainRunnerRestartsExitedWorkerAndLogsIt(): void
