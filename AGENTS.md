@@ -1,8 +1,9 @@
 # AGENTS.md
 
 ## Проект
-- `Transport-Telegram` — отдельный репозиторий внутри каталога `Codex-Multitenant`.
-- Назначение проекта: transport gateway для Telegram-compatible Bot API.
+- `Oberbot-AI-Transport` — отдельный проект, созданный как fork `Transport-Telegram`.
+- Проект не входит в `Codex-Multitenant`.
+- Назначение: Telegram transport для скрытой AI-группы Oberbot и учёт времени Codex в Oberbot.
 
 ## Архитектурные границы
 - Репозиторий знает только transport ingress/outbound и нормализацию payload.
@@ -11,7 +12,7 @@
 - Любой transport-native media должен нормализоваться до text/references до передачи в `Router`.
 
 ## Контракты
-- Источник истины — фактический код и будущие contract documents внутри репозитория.
+- Источник истины — фактический код, `CONTRACT.md` и `OBERBOT_INTEGRATION_CONTRACT.md`.
 - Любой новый endpoint или webhook contract сначала фиксируется в документации.
 - Затем добавляется fail-first тест.
 - Только затем добавляется код.
@@ -21,4 +22,4 @@
 - Канонический внешний boundary — Telegram-compatible HTTP API.
 
 ## Деплой
-- Канонический деплой этого проекта: `run /home/web/Документы/Codex-Multitenant/Transport-Telegram/deploy.sh`
+- Штатный production deployment path должен быть описан до первого деплоя.
