@@ -4,7 +4,7 @@
     "type": "project",
     "require": {
         "php": "^8.2",
-        "fastvolt/markdown": "v0.3.0.x-dev",
+        "fastvolt/markdown": "v0.3.0.x-dev#1056e1bbbba7a7b908aa777eebe4b7569192bebf",
         "losthost/background-process": "^1.1",
         "losthost/db": "^3.5@beta",
         "losthost/time-tracker": "^1.1"
