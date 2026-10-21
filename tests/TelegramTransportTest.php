@@ -2262,6 +2262,11 @@ class FakeTelegramClient implements TelegramClientInterface
     /** @var list<string> */
     public array $download_file_calls = [];
 
+    public function createForumTopic(int|string $chat_id, string $name): array
+    {
+        return ['message_thread_id' => 1, 'name' => $name];
+    }
+
     public function setMyCommands(array $commands, ?array $scope = null): void
     {
         $this->bot_commands = $commands;

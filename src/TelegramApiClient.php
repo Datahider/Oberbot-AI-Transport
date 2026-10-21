@@ -122,6 +122,18 @@ final class TelegramApiClient implements TelegramClientInterface, BotManagementC
         return $this->request('sendMessage', $payload);
     }
 
+    public function createForumTopic(int|string $chat_id, string $name): array
+    {
+        $name = trim($name);
+        if ($name === '' || mb_strlen($name) > 128) {
+            throw new RuntimeException('Telegram forum topic name must contain 1..128 characters');
+        }
+        $response = $this->request('createForumTopic', ['chat_id' => $chat_id, 'name' => $name]);
+        $topic = $response['result'] ?? null;
+        if (!is_array($topic)) throw new TelegramUnavailableException('Telegram API returned invalid createForumTopic payload');
+        return $topic;
+    }
+
     public function sendDocument(
         int|string $chat_id,
         string $file_path,

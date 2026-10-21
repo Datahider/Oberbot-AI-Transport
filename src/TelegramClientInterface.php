@@ -6,6 +6,9 @@ namespace CodexMultitenant\TransportTelegram;
 
 interface TelegramClientInterface extends TelegramCommandClientInterface
 {
+    /** @return array<string, mixed> */
+    public function createForumTopic(int|string $chat_id, string $name): array;
+
     /**
      * @return array<string, mixed>
      */

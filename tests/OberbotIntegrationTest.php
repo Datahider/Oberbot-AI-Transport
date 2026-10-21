@@ -45,6 +45,7 @@ final class OberbotIntegrationTelegram implements TelegramClientInterface
     public array $created_titles = [];
     public array $documents = [];
     public function createForumTopic(int|string $chat_id, string $name): array { $this->created_titles[] = $name; return ['message_thread_id' => 771]; }
+    public function setMyCommands(array $commands, ?array $scope = null): void {}
     public function sendDocument(int|string $chat_id, string $file_path, ?string $caption = null, ?string $parse_mode = null, bool $disable_notification = false, ?int $thread_id = null): array { $this->documents[] = [$chat_id, $file_path, $thread_id]; return ['message_id' => 1]; }
     public function getUpdates(?int $offset, int $timeout, int $limit = 100): array { return []; }
     public function getFile(string $file_id): array { return []; }
@@ -55,7 +56,7 @@ final class OberbotIntegrationTelegram implements TelegramClientInterface
     public function sendVoice(int|string $chat_id, string $file_path, ?string $caption = null, ?string $parse_mode = null, ?int $thread_id = null): array { return []; }
     public function deleteMessage(int|string $chat_id, int $message_id): void {}
     public function editMessageText(int|string $chat_id, int $message_id, string $text, ?string $parse_mode = null, ?int $thread_id = null): void {}
-    public function sendChatAction(int|string $chat_id, string $action, ?int $thread_id = null): void {}
+    public function sendChatAction(int|string $chat_id, string $action = 'typing', ?int $thread_id = null): void {}
     public function editForumTopic(int|string $chat_id, int $thread_id, ?string $name = null, ?string $icon_custom_emoji_id = null): void {}
     public function closeForumTopic(int|string $chat_id, int $thread_id): void {}
     public function getChatMember(int|string $chat_id, int $user_id): array { return []; }
@@ -67,7 +68,7 @@ final class OberbotIntegrationRouter implements RouterClientInterface
     public function postIngress(array $payload): array { $this->ingress[] = $payload; return ['accepted' => true, 'event_id' => 5]; }
     public function createInstallPairingCode(string $binding, string $label): array { return []; }
     public function claimCoreBinding(string $binding, string $pairing_code, string $label): array { return []; }
-    public function postToolResponse(string $binding, string $opaque, array $meta): array { return []; }
+    public function getOutboundEvents(int $after_id, int $wait, int $limit): array { return []; }
 }
 
 final class OberbotIntegrationFiles implements FileExchangeClientInterface
