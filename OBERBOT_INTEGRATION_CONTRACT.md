@@ -22,6 +22,9 @@
 - `oberbot.submit_command_secret`
 
 AI transport и Oberbot используют одну MariaDB database и один table prefix для integration/time-tracker tables.
+Database основного Codex Multitenant Telegram transport не используется и с database форка не пересекается.
+
+Fork обслуживает ровно один Telegram bot. Ingress работает через long polling: `transport.telegram_polling_enabled=true`, а token задаётся в `telegram.bot_token` и регистрируется как единственный default bot в локальном registry форка.
 
 ## Local submit command
 
