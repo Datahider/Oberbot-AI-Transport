@@ -9,3 +9,4 @@ require_once __DIR__ . '/MainRunnerTest.php';
 require_once __DIR__ . '/WebhookEndpointTest.php';
 require_once __DIR__ . '/BotHandoverTest.php';
 require_once __DIR__ . '/BotManagementTest.php';
+require_once __DIR__ . '/OberbotIntegrationTest.php';
