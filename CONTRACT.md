@@ -349,8 +349,9 @@
 ## Telegram HTML Contract
 - Parse mode для `final`, `commentary`, `status` — `HTML`.
 - Собственные markdown/html-converter'ы писать запрещено.
-- Для markdown->HTML используется `fastvolt/markdown`.
+- Для markdown->HTML используется `fastvolt/markdown`, зафиксированный на production commit `1056e1bbbba7a7b908aa777eebe4b7569192bebf`.
 - Исходный Markdown передаётся в `fastvolt/markdown` без предварительного HTML-экранирования; экранирование обычного текста, inline-code и fenced code block выполняет сама библиотека.
+- Fenced code block с языком `text` рендерится как `<pre><code class="language-text">...</code></pre>`.
 - Процедура очистки несовместимых тегов переносится из старого reference-transport без отсебятины.
 
 ## Telegram Webhook Endpoint
