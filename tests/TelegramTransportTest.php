@@ -865,9 +865,20 @@ function testRendererEscapesAngleBracketsExactlyOnce(): void
         'inline code pseudo tags escaped once'
     );
     assertSame(
-        "<pre><code>&lt;files&gt;\n&lt;5 authoritative artifacts&gt;</code></pre>",
+        "<pre><code class=\"language-text\">&lt;files&gt;\n&lt;5 authoritative artifacts&gt;</code></pre>",
         $renderer->renderFinal("```text\n<files>\n<5 authoritative artifacts>\n```"),
         'fenced code pseudo tags escaped once'
+    );
+}
+
+function testMarkdownDependencyIsPinnedToProductionCommit(): void
+{
+    $composer = json_decode((string) file_get_contents(__DIR__ . '/../composer.json'), true);
+
+    assertSame(
+        'v0.3.0.x-dev#1056e1bbbba7a7b908aa777eebe4b7569192bebf',
+        $composer['require']['fastvolt/markdown'] ?? null,
+        'markdown dependency pinned to production commit'
     );
 }
 
@@ -2777,6 +2788,7 @@ testVoiceOutboundDownloadsAndSendsTelegramVoice();
 testVoiceQuoteCommandsSupportGroupInheritanceAndTopicOverride();
 testRendererRemovesUnsupportedTableTags();
 testRendererEscapesAngleBracketsExactlyOnce();
+testMarkdownDependencyIsPinnedToProductionCommit();
 testIngressRunnerRegistersBotCommandsBeforePolling();
 testIngressRunnerWaitsAndRetriesAfterTelegramUnavailable();
 testIngressRunnerWaitsAndRetriesAfterTelegramRateLimit();
