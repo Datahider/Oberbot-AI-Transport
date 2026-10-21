@@ -12,6 +12,10 @@ use CodexMultitenant\TransportTelegram\Data\PendingBotAction;
 use CodexMultitenant\TransportTelegram\Data\ProcessCursorState;
 use CodexMultitenant\TransportTelegram\Data\TelegramBot;
 use CodexMultitenant\TransportTelegram\Data\TelegramChatBotRoute;
+use CodexMultitenant\TransportTelegram\Data\OberbotAiHandoff;
+use CodexMultitenant\TransportTelegram\Data\OberbotAiTurn;
+use losthost\timetracker\Timer;
+use losthost\timetracker\TimerEvent;
 use losthost\DB\DB;
 
 final class DatabaseBootstrap
@@ -37,5 +41,9 @@ final class DatabaseBootstrap
         TelegramBot::initDataStructure();
         TelegramChatBotRoute::initDataStructure();
         PendingBotAction::initDataStructure();
+        OberbotAiHandoff::initDataStructure();
+        OberbotAiTurn::initDataStructure();
+        Timer::initDataStructure();
+        TimerEvent::initDataStructure();
     }
 }

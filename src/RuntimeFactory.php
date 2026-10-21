@@ -82,9 +82,18 @@ final class RuntimeFactory
 
         $registry = self::createBotRegistry($config);
 
+        $oberbot = OberbotRuntimeConfig::fromConfigPath($config_path);
+        $integration_store = new DbOberbotIntegrationStore();
+        $accounting = new TurnAccountingService(
+            $integration_store,
+            $integration_store,
+            new TimeTrackerClosedEventWriter($oberbot->ai->ai_timer_subject),
+            $oberbot->ai
+        );
+
         return new OutboundRunner(
             $router,
-            new BotAwareOutboundDelivery(
+            new AccountingOutboundDelivery(new BotAwareOutboundDelivery(
                 $config,
                 $router,
                 $registry,
@@ -94,10 +103,28 @@ final class RuntimeFactory
                 new FileExchangeApiClient(
                     $config->file_exchange_base_url,
                     $config->file_exchange_token
-                ),
-                new DbGroupAccessStore()
-            ),
-            new DbCursorStore()
+                )
+            ), $accounting),
+            new DbCursorStore(),
+            after_poll: static fn () => $accounting->closeTimedOut()
+        );
+    }
+
+    public static function createOberbotTicketSubmitter(string $config_path): OberbotTicketSubmitter
+    {
+        $config = TelegramTransportConfig::fromConfigPath($config_path);
+        $oberbot = OberbotRuntimeConfig::fromConfigPath($config_path);
+        DatabaseBootstrap::connect($config);
+        DatabaseBootstrap::initDataStructure();
+        $router = new ApiClient($config->router_base_url, $config->router_token, new CurlHttpClient());
+        $registry = self::createBotRegistry($config);
+        $bot = $registry->defaultBot();
+        return new OberbotTicketSubmitter(
+            $oberbot->ai,
+            new TelegramApiClient($bot->token, $config->telegram_base_url, $config->telegram_endpoint_prefix),
+            $router,
+            new FileExchangeApiClient($config->file_exchange_base_url, $config->file_exchange_token),
+            new DbOberbotIntegrationStore()
         );
     }
 

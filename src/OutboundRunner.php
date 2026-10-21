@@ -17,7 +17,8 @@ final class OutboundRunner
         private RouterClientInterface $router,
         private OutboundDeliveryInterface $transport,
         private CursorStoreInterface $cursor_store,
-        ?callable $sleep_fn = null
+        ?callable $sleep_fn = null,
+        private $after_poll = null
     ) {
         $this->sleep_fn = $sleep_fn;
     }
@@ -113,6 +114,7 @@ final class OutboundRunner
                     $this->cursor_store->saveRouterAfterId($router_after_id);
                 }
             }
+            if ($this->after_poll !== null) ($this->after_poll)();
         }
     }
 
