@@ -54,7 +54,8 @@ final class OberbotTicketSubmitter
                 'opaque' => $record->opaque(),
                 'kind' => 'message',
                 'text' => "Изучи новую заявку клиента и начни работу.\n\n"
-                    . 'Данные по доступам и компании клиента в файле ~/clients/*' . $source_chat_id . '.md',
+                    . 'Данные по доступам и компании клиента в файле ~/clients/*' . $source_chat_id . ".md\n\n"
+                    . 'Если файла нет — сразу остановись и сообщи об этом.',
                 'attachments' => [[
                     'type' => 'document',
                     'url' => $url,
