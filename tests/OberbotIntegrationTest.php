@@ -128,5 +128,7 @@ assertSame($now->modify('+24 seconds')->format(DATE_ATOM), $writer->events[1]['e
 $db_store_source = (string) file_get_contents(__DIR__ . '/../src/DbOberbotIntegrationStore.php');
 assertTrue(!str_contains($db_store_source, '$state->started_at->format'), 'turn store preserves DateTimeImmutable');
 assertTrue(!str_contains($db_store_source, '(string) $row->started_at'), 'turn store reuses hydrated DateTimeImmutable');
+$time_writer_source = (string) file_get_contents(__DIR__ . '/../src/TimeTrackerClosedEventWriter.php');
+assertTrue(str_contains($time_writer_source, "'Codex AI turn', []"), 'time event passes explicit empty tags');
 
 unlink($log_path);
