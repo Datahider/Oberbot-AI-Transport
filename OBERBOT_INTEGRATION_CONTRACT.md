@@ -82,5 +82,6 @@ php bin/submit-oberbot-ticket.php <config-path> <job-path>
   - object = Oberbot ticket ID;
   - project = source client group ID;
   - start/end = integration turn start/end.
+  - tags = явный пустой массив.
 - `Timer::start()` и `Timer::stop()` не используются.
 - Параллельные turns создают независимые closed events.
