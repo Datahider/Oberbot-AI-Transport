@@ -107,6 +107,7 @@ assertSame('-100999:771', $record->opaque(), 'hidden opaque');
 assertSame($log_path, $telegram->documents[0][1], 'visible log document');
 assertSame('-100999', $router->ingress[0]['binding'], 'hidden binding');
 assertTrue(str_contains($router->ingress[0]['text'], '~/clients/*-10037366278346.md'), 'client file prompt');
+assertTrue(str_contains($router->ingress[0]['text'], 'Если файла нет — сразу остановись и сообщи об этом.'), 'missing client file prompt');
 assertSame('https://files.ioannidis.ru/log1', $router->ingress[0]['attachments'][0]['url'], 'log attachment URL');
 
 $writer = new OberbotIntegrationTimeWriter();
