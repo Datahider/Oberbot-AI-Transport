@@ -891,7 +891,7 @@ function testRendererDrawsHtmlTaskListCheckboxes(): void
     $method->setAccessible(true);
 
     assertSame(
-        "☐ Оплатить аренду\n☑ Записаться на ТО\n☑ Поздравить дочь с ДР\n• обычный пункт\n",
+        "🔲 Оплатить аренду\n✅ Записаться на ТО\n✅ Поздравить дочь с ДР\n• обычный пункт\n",
         $method->invoke(
             $renderer,
             "<ul>\n<li>[ ] Оплатить аренду</li>\n<li>[x] Записаться на ТО</li>\n<li>[X] Поздравить дочь с ДР</li>\n<li>обычный пункт</li>\n</ul>"
@@ -899,9 +899,14 @@ function testRendererDrawsHtmlTaskListCheckboxes(): void
         'unordered task list checkboxes'
     );
     assertSame(
-        "1. ☐ нумерованный\n\n2. ☑ готово\n\n",
+        "1. 🔲 нумерованный\n2. ✅ готово\n",
         $method->invoke($renderer, "<ol>\n<li>[ ] нумерованный</li>\n<li>[x] готово</li>\n</ol>"),
         'ordered task list checkboxes'
+    );
+    assertSame(
+        "Шаги:\n1. раз\n2. два\n3. три\n",
+        $method->invoke($renderer, "<p>Шаги:</p>\n<ol>\n<li>раз</li>\n<li>два</li>\n<li>три</li>\n</ol>"),
+        'ordered list without blank lines'
     );
 }
 
