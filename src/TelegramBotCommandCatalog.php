@@ -99,6 +99,10 @@ final class TelegramBotCommandCatalog
                 'command' => 'model',
                 'description' => 'Показать или выбрать модель Codex',
             ],
+            [
+                'command' => 'provider',
+                'description' => 'Показать или выбрать провайдера: codex или claude',
+            ],
         ];
     }
 
