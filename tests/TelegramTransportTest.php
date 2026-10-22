@@ -850,6 +850,40 @@ function testRendererRemovesUnsupportedTableTags(): void
     assertTrue(!str_contains($rendered, '<th'), 'th tag removed');
 }
 
+function testRendererKeepsHtmlEntitiesEscapedInTables(): void
+{
+    $renderer = new TelegramTextRenderer();
+    $method = new ReflectionMethod(TelegramTextRenderer::class, 'replaceUnsupported');
+    $method->setAccessible(true);
+
+    assertSame(
+        "\n&lt;команда&gt; | a &amp; b\n",
+        $method->invoke(
+            $renderer,
+            '<table><tr><td><code>&lt;команда&gt;</code></td><td>a &amp; b</td></tr></table>'
+        ),
+        'table cell HTML entities stay escaped'
+    );
+}
+
+function testRendererUppercasesOnlyTextInHtmlHeadings(): void
+{
+    $renderer = new TelegramTextRenderer();
+    $method = new ReflectionMethod(TelegramTextRenderer::class, 'replaceUnsupported');
+    $method->setAccessible(true);
+
+    assertSame(
+        '<b>ЗАГОЛОВОК <code>&lt;КОМАНДА&gt;</code> &amp; Б</b>',
+        $method->invoke($renderer, '<h1>Заголовок <code>&lt;команда&gt;</code> &amp; б</h1>'),
+        'h1 keeps HTML tags and entities'
+    );
+    assertSame(
+        '<b>РАЗДЕЛ <a href="http://x">ССЫЛКА</a></b>',
+        $method->invoke($renderer, '<h2>Раздел <a href="http://x">ссылка</a></h2>'),
+        'h2 keeps HTML tags and attributes'
+    );
+}
+
 function testRendererEscapesAngleBracketsExactlyOnce(): void
 {
     $renderer = new TelegramTextRenderer();
@@ -2799,6 +2833,8 @@ testVoiceQuoteCommandsSupportGroupInheritanceAndTopicOverride();
 testRendererRemovesUnsupportedTableTags();
 testRendererEscapesAngleBracketsExactlyOnce();
 testMarkdownDependencyIsPinnedToProductionCommit();
+testRendererKeepsHtmlEntitiesEscapedInTables();
+testRendererUppercasesOnlyTextInHtmlHeadings();
 testIngressRunnerRegistersBotCommandsBeforePolling();
 testIngressRunnerWaitsAndRetriesAfterTelegramUnavailable();
 testIngressRunnerWaitsAndRetriesAfterTelegramRateLimit();
