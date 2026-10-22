@@ -244,7 +244,9 @@
   - `/limits` — `Показать текущие лимиты Codex`
   - `/model` — `Показать или выбрать модель Codex`
   - `/provider` — `Показать или выбрать провайдера: codex или claude`
-- `/stop`, `/reset`, `/session`, `/limits`, `/model`, `/provider` не являются transport-local command и публикуются только для bot menu.
+  - `/codex` — `Выбрать провайдера codex`
+  - `/claude` — `Выбрать провайдера claude`
+- `/stop`, `/reset`, `/session`, `/limits`, `/model`, `/provider`, `/codex`, `/claude` не являются transport-local command и публикуются только для bot menu.
 - При каждом старте основного Transport-сервиса меню переустанавливается для
   всех enabled-ботов до запуска inbound/outbound workers.
 - Ошибка `setMyCommands` одного бота логируется с `bot_key` и `username`, но не прерывает

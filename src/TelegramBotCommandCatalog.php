@@ -103,6 +103,14 @@ final class TelegramBotCommandCatalog
                 'command' => 'provider',
                 'description' => 'Показать или выбрать провайдера: codex или claude',
             ],
+            [
+                'command' => 'codex',
+                'description' => 'Выбрать провайдера codex',
+            ],
+            [
+                'command' => 'claude',
+                'description' => 'Выбрать провайдера claude',
+            ],
         ];
     }
 
