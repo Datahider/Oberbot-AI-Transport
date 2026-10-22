@@ -884,6 +884,27 @@ function testRendererUppercasesOnlyTextInHtmlHeadings(): void
     );
 }
 
+function testRendererDrawsHtmlTaskListCheckboxes(): void
+{
+    $renderer = new TelegramTextRenderer();
+    $method = new ReflectionMethod(TelegramTextRenderer::class, 'replaceUnsupported');
+    $method->setAccessible(true);
+
+    assertSame(
+        "☐ Оплатить аренду\n☑ Записаться на ТО\n☑ Поздравить дочь с ДР\n• обычный пункт\n",
+        $method->invoke(
+            $renderer,
+            "<ul>\n<li>[ ] Оплатить аренду</li>\n<li>[x] Записаться на ТО</li>\n<li>[X] Поздравить дочь с ДР</li>\n<li>обычный пункт</li>\n</ul>"
+        ),
+        'unordered task list checkboxes'
+    );
+    assertSame(
+        "1. ☐ нумерованный\n2. ☑ готово\n",
+        $method->invoke($renderer, "<ol>\n<li>[ ] нумерованный</li>\n<li>[x] готово</li>\n</ol>"),
+        'ordered task list checkboxes'
+    );
+}
+
 function testRendererEscapesAngleBracketsExactlyOnce(): void
 {
     $renderer = new TelegramTextRenderer();
@@ -2837,6 +2858,7 @@ testRendererEscapesAngleBracketsExactlyOnce();
 testMarkdownDependencyIsPinnedToProductionCommit();
 testRendererKeepsHtmlEntitiesEscapedInTables();
 testRendererUppercasesOnlyTextInHtmlHeadings();
+testRendererDrawsHtmlTaskListCheckboxes();
 testIngressRunnerRegistersBotCommandsBeforePolling();
 testIngressRunnerWaitsAndRetriesAfterTelegramUnavailable();
 testIngressRunnerWaitsAndRetriesAfterTelegramRateLimit();
