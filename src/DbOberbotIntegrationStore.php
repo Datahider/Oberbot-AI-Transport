@@ -51,8 +51,8 @@ final class DbOberbotIntegrationStore implements OberbotHandoffStoreInterface, T
         catch (Throwable) { $row = new OberbotAiTurn(); $row->opaque = $state->opaque; }
         $row->ticket_id = $state->ticket_id;
         $row->source_chat_id = $state->source_chat_id;
-        $row->started_at = $state->started_at->format('Y-m-d H:i:s');
-        $row->last_heartbeat_at = $state->last_heartbeat_at->format('Y-m-d H:i:s');
+        $row->started_at = $state->started_at;
+        $row->last_heartbeat_at = $state->last_heartbeat_at;
         $row->write();
     }
 
@@ -77,6 +77,6 @@ final class DbOberbotIntegrationStore implements OberbotHandoffStoreInterface, T
 
     private function turn(OberbotAiTurn $row): TurnState
     {
-        return new TurnState((string) $row->opaque, (int) $row->ticket_id, (string) $row->source_chat_id, new \DateTimeImmutable((string) $row->started_at), new \DateTimeImmutable((string) $row->last_heartbeat_at));
+        return new TurnState((string) $row->opaque, (int) $row->ticket_id, (string) $row->source_chat_id, $row->started_at, $row->last_heartbeat_at);
     }
 }
