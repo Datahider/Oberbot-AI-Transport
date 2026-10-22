@@ -110,6 +110,38 @@ assertTrue(str_contains($router->ingress[0]['text'], '~/clients/*-10037366278346
 assertTrue(str_contains($router->ingress[0]['text'], 'Сначала прочитай AGENTS.md из этой папки.'), 'client AGENTS prompt');
 assertTrue(str_contains($router->ingress[0]['text'], 'Если папка не существует или не содержит AGENTS.md — сразу остановись и сообщи об этом.'), 'missing client directory prompt');
 assertSame('https://files.ioannidis.ru/log1', $router->ingress[0]['attachments'][0]['url'], 'log attachment URL');
+assertSame(['source' => 'oberbot', 'ticket_id' => 42, 'source_chat_id' => '-10037366278346'], $router->ingress[0]['meta'], 'meta without provider');
+
+foreach (['codex', 'claude'] as $index => $provider) {
+    $provider_router = new OberbotIntegrationRouter();
+    (new OberbotTicketSubmitter($config, new OberbotIntegrationTelegram(), $provider_router, new OberbotIntegrationFiles(), new OberbotIntegrationMemoryStore()))->submit([
+        'ticket_id' => 60 + $index,
+        'source_chat_id' => '-100',
+        'source_thread_id' => 55,
+        'ticket_title' => 'Провайдер',
+        'log_path' => $log_path,
+        'provider' => $provider,
+    ]);
+    assertSame($provider, $provider_router->ingress[0]['meta']['provider'] ?? null, $provider . ' meta provider');
+}
+
+foreach (['gemini', '', 1] as $bad_provider) {
+    $bad_router = new OberbotIntegrationRouter();
+    try {
+        (new OberbotTicketSubmitter($config, new OberbotIntegrationTelegram(), $bad_router, new OberbotIntegrationFiles(), new OberbotIntegrationMemoryStore()))->submit([
+            'ticket_id' => 70,
+            'source_chat_id' => '-100',
+            'source_thread_id' => 55,
+            'ticket_title' => 'Провайдер',
+            'log_path' => $log_path,
+            'provider' => $bad_provider,
+        ]);
+        throw new LogicException('invalid provider accepted');
+    } catch (RuntimeException $error) {
+        assertSame('Invalid Oberbot handoff job', $error->getMessage(), 'invalid provider ' . var_export($bad_provider, true));
+        assertSame([], $bad_router->ingress, 'no ingress for invalid provider');
+    }
+}
 
 $writer = new OberbotIntegrationTimeWriter();
 $now = new DateTimeImmutable('2026-10-21 10:00:00');

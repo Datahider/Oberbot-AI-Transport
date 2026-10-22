@@ -36,6 +36,7 @@ php bin/submit-oberbot-ticket.php <config-path> <job-path>
 
 - Job path обязан указывать на regular readable file.
 - Job — JSON object с `ticket_id`, `source_chat_id`, `source_thread_id`, `ticket_title`, `log_path`, `secret`.
+- Job может содержать `provider` со значением `codex` или `claude`. Любое другое значение, включая пустую строку, — invalid job.
 - `secret` должен точно совпадать с `oberbot.submit_command_secret`.
 - stdout success — JSON object `{"accepted":true,"hidden_thread_id":<int>}` и exit code `0`.
 - Ошибка — ненулевой exit code; детали не показываются Telegram-пользователю.
@@ -57,6 +58,7 @@ php bin/submit-oberbot-ticket.php <config-path> <job-path>
   - `opaque` = `<hidden_chat_id>:<hidden_thread_id>`;
   - `kind` = `message`;
   - один document attachment с URL log file.
+  - `meta` = `source`, `ticket_id`, `source_chat_id` и, если job содержит `provider`, `provider` без изменения. Без `provider` в job поле в `meta` отсутствует.
 - Text начинается с инструкции изучить новую заявку.
 - Text дополняется строкой:
 

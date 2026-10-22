@@ -8,6 +8,8 @@ use RuntimeException;
 
 final class OberbotTicketSubmitter
 {
+    private const PROVIDERS = ['codex', 'claude'];
+
     public function __construct(
         private OberbotAiConfig $config,
         private TelegramClientInterface $telegram,
@@ -25,6 +27,10 @@ final class OberbotTicketSubmitter
         $title = trim((string) ($job['ticket_title'] ?? ''));
         $log_path = trim((string) ($job['log_path'] ?? ''));
         if ($ticket_id < 1 || $source_chat_id === '' || $source_thread_id < 1 || $title === '' || !is_file($log_path)) {
+            throw new RuntimeException('Invalid Oberbot handoff job');
+        }
+        $has_provider = array_key_exists('provider', $job);
+        if ($has_provider && !in_array($job['provider'], self::PROVIDERS, true)) {
             throw new RuntimeException('Invalid Oberbot handoff job');
         }
 
@@ -49,6 +55,8 @@ final class OberbotTicketSubmitter
             $uploaded = $this->files->uploadFile($log_path, basename($log_path), 'text/plain');
             $url = trim((string) ($uploaded['url'] ?? ''));
             if ($url === '') throw new RuntimeException('File exchange response is missing log URL');
+            $meta = ['source' => 'oberbot', 'ticket_id' => $ticket_id, 'source_chat_id' => $source_chat_id];
+            if ($has_provider) $meta['provider'] = $job['provider'];
             $response = $this->router->postIngress([
                 'binding' => $record->hidden_chat_id,
                 'opaque' => $record->opaque(),
@@ -63,7 +71,7 @@ final class OberbotTicketSubmitter
                     'name' => basename($log_path),
                     'size_bytes' => filesize($log_path),
                 ]],
-                'meta' => ['source' => 'oberbot', 'ticket_id' => $ticket_id, 'source_chat_id' => $source_chat_id],
+                'meta' => $meta,
             ]);
             if (($response['accepted'] ?? false) !== true) throw new RuntimeException('Router rejected Oberbot initial ingress');
             $record = $record->withIngressSent();
