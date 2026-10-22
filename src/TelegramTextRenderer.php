@@ -65,6 +65,8 @@ final class TelegramTextRenderer
 
     private function replaceUnsupported(string $html): string
     {
+        $html = (string) preg_replace('/(<li\b[^>]*>)\s*\[ \]\s+/u', '$1☐ ', $html);
+        $html = (string) preg_replace('/(<li\b[^>]*>)\s*\[[xX]\]\s+/u', '$1☑ ', $html);
         $html = $this->processOrderedLists($html);
         $html = $this->processTables($html);
 
@@ -75,6 +77,7 @@ final class TelegramTextRenderer
         $html = (string) preg_replace('/<ol\b[^>]*>/i', '', $html);
         $html = str_replace('</ol>', '', $html);
         $html = (string) preg_replace('/(?<!\n)<li\b[^>]*>/i', "\n<li>", $html);
+        $html = (string) preg_replace('/<li\b[^>]*>(?=[☐☑] )/iu', '', $html);
         $html = (string) preg_replace('/<li\b[^>]*>/i', '• ', $html);
         $html = str_replace('</li>', '', $html);
         $html = str_replace('<p>', "\n", $html);

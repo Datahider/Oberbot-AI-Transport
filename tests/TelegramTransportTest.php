@@ -899,7 +899,7 @@ function testRendererDrawsHtmlTaskListCheckboxes(): void
         'unordered task list checkboxes'
     );
     assertSame(
-        "1. ☐ нумерованный\n2. ☑ готово\n",
+        "1. ☐ нумерованный\n\n2. ☑ готово\n\n",
         $method->invoke($renderer, "<ol>\n<li>[ ] нумерованный</li>\n<li>[x] готово</li>\n</ol>"),
         'ordered task list checkboxes'
     );
