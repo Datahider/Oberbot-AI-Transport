@@ -88,12 +88,12 @@ final class TelegramTextRenderer
         $html = (string) preg_replace('/<blockquote>\s*/', '<blockquote expandable>', $html);
         $html = (string) preg_replace_callback(
             '/<h1>(.*?)<\/h1>/i',
-            static fn (array $m): string => '<b>' . mb_strtoupper($m[1]) . '</b>',
+            fn (array $m): string => '<b>' . $this->uppercaseHtmlText($m[1]) . '</b>',
             $html
         );
         $html = (string) preg_replace_callback(
             '/<h2>(.*?)<\/h2>/i',
-            static fn (array $m): string => '<b>' . mb_strtoupper($m[1]) . '</b>',
+            fn (array $m): string => '<b>' . $this->uppercaseHtmlText($m[1]) . '</b>',
             $html
         );
         $html = (string) preg_replace('/<h3>(.*?)<\/h3>/i', '<b>$1</b>', $html);
@@ -102,6 +102,22 @@ final class TelegramTextRenderer
         $html = (string) preg_replace('/<h6>(.*?)<\/h6>/i', '<u>$1</u>', $html);
 
         return ltrim($html);
+    }
+
+    private function uppercaseHtmlText(string $html): string
+    {
+        $parts = preg_split('/(<[^>]*>|&[#a-zA-Z0-9]+;)/u', $html, -1, PREG_SPLIT_DELIM_CAPTURE);
+        if ($parts === false) {
+            throw new \RuntimeException('Failed to split heading HTML');
+        }
+
+        foreach ($parts as $index => $part) {
+            if ($index % 2 === 0) {
+                $parts[$index] = mb_strtoupper($part);
+            }
+        }
+
+        return implode('', $parts);
     }
 
     private function processTables(string $html): string
@@ -116,7 +132,6 @@ final class TelegramTextRenderer
                 $cells = array_map(
                     static function (string $cellHtml): string {
                         $text = strip_tags($cellHtml);
-                        $text = html_entity_decode($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                         return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
                     },
                     $cellMatches[2] ?? []

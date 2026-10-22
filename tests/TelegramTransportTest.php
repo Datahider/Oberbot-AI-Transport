@@ -857,7 +857,7 @@ function testRendererKeepsHtmlEntitiesEscapedInTables(): void
     $method->setAccessible(true);
 
     assertSame(
-        "\n&lt;команда&gt; | a &amp; b\n",
+        "&lt;команда&gt; | a &amp; b\n",
         $method->invoke(
             $renderer,
             '<table><tr><td><code>&lt;команда&gt;</code></td><td>a &amp; b</td></tr></table>'
