@@ -73,6 +73,7 @@ php bin/submit-oberbot-ticket.php <config-path> <job-path>
 - Accounting применяется только к outbound events hidden topics, имеющих Oberbot ticket mapping.
 - Первый `heartbeat` открывает integration turn state с `started_at` и `last_heartbeat_at`.
 - Следующий `heartbeat` обновляет `last_heartbeat_at`.
+- Значения `started_at` и `last_heartbeat_at` передаются в `losthost/db` и читаются из него как `DateTimeImmutable`, без преобразования в строку.
 - `final` закрывает turn с `end_time`, равным времени приёма `final`.
 - Timeout-worker закрывает turn, если heartbeat не было 12 секунд.
 - `end_time` timeout event равен `last_heartbeat_at + 4 seconds`.
