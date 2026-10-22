@@ -929,6 +929,16 @@ function testIngressRunnerRegistersBotCommandsBeforePolling(): void
             'description' => 'Показать или выбрать модель Codex',
         ],
     ], $model_commands, 'model command registered');
+    $provider_commands = array_values(array_filter(
+        $telegram->command_sets['all_chat_administrators'] ?? [],
+        static fn (array $command): bool => ($command['command'] ?? null) === 'provider'
+    ));
+    assertSame([
+        [
+            'command' => 'provider',
+            'description' => 'Показать или выбрать провайдера: codex или claude',
+        ],
+    ], $provider_commands, 'provider command registered');
     $voice_commands = array_values(array_filter(
         $telegram->bot_commands,
         static fn (array $command): bool => in_array(($command['command'] ?? null), ['voices', 'voice'], true)
